@@ -16,7 +16,11 @@ _Avoid_: Plugin (implies extending someone else's closed system), module (collid
 The category an Applet declares itself as in its Manifest — currently `documentation` or `calculator` (calculators may be static or interactive). A closed set the Host understands, not something Applets invent freely; the Host uses it to decide how to render and run the Applet.
 
 **Manifest**:
-The declaration an Applet makes about itself to the Host — its Applet type, name, tags, and, for calculators, the input schema. This is what the Host reads when discovering an Applet, and where the Host writes saved defaults back to.
+The declaration an Applet makes about itself to the Host — its Applet type, name, tags, and, for calculators, the input schema. This is what the Host reads when discovering an Applet. The Manifest is the **author's** file: the Host only ever reads it, never writes to it (see Overlay, and [ADR-0007](docs/adr/0007-manifests-read-only-user-overrides-in-overlay.md)).
+
+**Overlay**:
+The Host-owned file holding the **user's** overrides of author-declared values — saved defaults, and any later override such as a corrected calibration. Merged over the Manifest at read time, keyed by Applet id. Always safely discardable: deleting it returns the Host to a pristine working state.
+_Avoid_: Settings, preferences, config — the Overlay is machine-written user state, distinct from the hand-edited Host config that declares Roots and port.
 
 **Root**:
 A directory the Host scans for Applets. An Applet belongs to exactly one Root, which is its provenance — the built-in set, the user's own, or a collection obtained from someone else.
