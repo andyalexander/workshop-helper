@@ -162,9 +162,23 @@ ticket's `mark gap = R·θ + m` formula at θ = 90°, D = 2.5:
 | --- | --- |
 | Our `mark gap = R·θ + m` | **2.1875** |
 | Swagelok's published `P2 − P1 = 2.5 − 5/16` | **2.1875** |
-| Difference | **0.00e+00** ✅ |
+| Difference | **0.00e+00** |
 
 P1 = 3, P2 = 5.1875 (published 5 3/16 ✅), P3 = 7.8750 (published 7 7/8 ✅).
+
+> **Read this check for exactly what it is — corrected on review.** Because the radius was
+> *back-solved from* Swagelok's tabulated 5/16, this agreement is **circular**: `mark gap` is
+> algebraically `leg − gain`, so feeding their gain back in must return their number. It is a
+> **consistency check on the algebra, not a confirmation of the geometry**, and the ✅ originally
+> here overstated it.
+>
+> It does **not** show that ideal geometry reproduces Swagelok's tables — it does not. Their real
+> 9/16 in radius gives a nominal gain of **0.2414 in**, not 5/16 = **0.3125 in**, and the formula
+> yields **2.2586**, missing their published 2.1875 by **1.81 mm** (see §7).
+>
+> **The section's conclusion below still stands**, because it rests on the *algebraic* identity
+> `leg − gain ≡ m + R·θ` — proven analytically in §1 to 10⁻¹⁴, independent of any radius — and on
+> Swagelok's **prose**, quoted above and verified verbatim. Neither depends on this table.
 
 **The ticket's derivation is not novel geometry — it is Swagelok's published arithmetic,
 generalised to arbitrary θ.** That is the strongest possible answer to "the derivation disagrees
@@ -421,17 +435,51 @@ smaller than the tolerance and the trade formula is fine. At 45° and above it i
 fast. An Applet that corrects a 0.32mm error at 22.5° is noise; one that corrects 9.46mm at 22mm/60°
 is the difference between a pipe that fits the clips and one that doesn't.
 
-### Regression fixture — Swagelok p22, guards the general formula [S][D]
+### Do NOT fixture Swagelok's worked example — retracted on review [D]
 
-The imperial Z (1/4 in tube, 5/16 in tabulated adjustment). Our `mark gap = R·θ + m` at θ=90°,
-D=2.5 reproduces `P2 − P1 = 2.1875` **exactly (0.00e+00)**. Keep it: it pins the offset formula
-against a manufacturer's published arithmetic.
+**An earlier revision of this document proposed** Swagelok's p22 worked example as a regression
+fixture, on the grounds that `mark gap = R·θ + m` reproduces `P2 − P1 = 2.5 − 5/16 = 2.1875`
+*"exactly (0.00e+00)"*. **The fixture recommendation is retracted.**
+
+The agreement is real but **circular**, and §3 says why in its own text: the radius was
+*back-solved from* Swagelok's tabulated 5/16 adjustment. `mark gap` is algebraically `leg − gain`,
+so feeding their gain back in must return their number. §3 disclosed the inversion; **§7 dropped
+that caveat and called the result a fixture against "a manufacturer's published arithmetic"**,
+which it is not.
+
+Worked through with the actual geometry (1/4 in tube, `R` = 9/16 in, θ = 90°, leg = 2.5 in):
+
+| | value |
+| --- | --- |
+| nominal gain from geometry — `2R·tan(θ/2) − R·θ` | **0.2414 in** |
+| Swagelok's tabulated adjustment | **0.3125 in** (5/16) |
+| Swagelok's published `P2 − P1` | **2.1875 in** |
+| our formula, `leg − nominal gain` | **2.2586 in** |
+| **mismatch** | **0.0711 in ≈ 1.81 mm** |
+
+Fed the **real** 9/16 in radius, the formula does not reproduce 2.1875 — it gives 2.2586, missing
+by 1.81 mm. A fixture asserting 2.1875 would therefore **encode Swagelok's rounding as if it were
+geometry**, and would fail the moment anyone supplied the true radius. It would test the table, not
+the derivation.
+
+**The recommendation contradicted itself on its face**, which is the useful lesson: the very next
+paragraph said *"Do not fixture Swagelok's or Greenlee's tables… the nominal gain for a 9/16 in
+radius at 90° is 0.2414 in, but Swagelok tabulates 5/16 = 0.3125 in."* The proposed fixture **was**
+Swagelok's table. Both cannot stand, and the arithmetic settles which.
+
+**Nothing else in this document depends on it.** The structural claim — that Swagelok's Adjustment
+method *is* `mark gap = vertex gap − gain`, i.e. `leg − gain = m + R·θ` — is an **algebraic**
+identity and holds regardless (§1, verified to 10⁻¹⁴). What fails is only the attempt to check that
+identity **numerically against a published table**, and it fails for precisely the reason the
+caveat below already gave. The prose sourcing in §2–§6 is unaffected.
 
 **Do not fixture Swagelok's or Greenlee's tables** — #4's caveat holds and I re-confirmed it. The
 nominal gain for a 9/16 in radius at 90° is **0.2414 in**, but Swagelok tabulates **5/16 = 0.3125 in**.
 The metric table is likewise high (3mm/R15 → 6 tabulated vs 6.44 nominal; 6mm/**R15** → **8**, same
-radius, different number). The tables encode real die radii and conservative rounding. **Fixture the
-derivation.**
+radius, different number). The tables encode real die radii and conservative rounding — they are
+**not** the ideal geometry, and the 1.81mm gap above is that difference made visible.
+
+**Fixture the derivation** (§1's numeric integration), never a manufacturer's table.
 
 ---
 
