@@ -1,0 +1,1293 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — Workshop Helper shell UI</title>
+<!--
+  ============================================================================
+  THROWAWAY PROTOTYPE — not production code. Answers GH issue #2.
+
+  "Three variants of the Host shell UI — browse/search/tag landing plus the
+   Applet page — switchable via ?variant=, on a throwaway static page."
+
+  Sub-shape B (a new page): the Host does not exist yet, so there is no
+  existing page to host the variants inside.
+
+  Deliberately NOT the real stack (Flask + htmx + markdown-it-py, per #3).
+  The question here is "what should this look like", not "does the round-trip
+  work". Vanilla HTML/CSS/JS, no dependencies, open it in a browser.
+
+  Variants:
+    A — Query-first.   Command palette. The search box IS the interface.
+    B — Facet sidebar. Persistent tag/root facets, dense list.
+    C — Tag-first.     Tags are the landing surface; big tactile cards.
+
+  The pipe-bender maths and the setting-out diagram are REAL (per #4):
+  setback = R_outside x tan(theta/2). Shared across variants because they are
+  content, not layout. Everything else per-variant, on purpose.
+  ============================================================================
+-->
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #f4f1ec;
+    color: #1b1815;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  input, select { font: inherit; color: inherit; }
+  a { color: inherit; }
+
+  :root {
+    --ink:    #1b1815;
+    --muted:  #7c7268;
+    --line:   #e0dad1;
+    --paper:  #fffdfa;
+    --accent: #b4531f;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  #app { min-height: 100vh; padding-bottom: 90px; }
+
+  /* ---------- prototype switcher (deliberately not part of any design) --- */
+  #switcher {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    z-index: 9999;
+    display: flex; align-items: center; gap: 2px;
+    background: #12100e; color: #fff;
+    border-radius: 999px; padding: 4px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.12);
+    font-size: 13px;
+  }
+  #switcher button {
+    background: none; border: 0; color: #fff;
+    width: 32px; height: 32px; border-radius: 999px; line-height: 1;
+  }
+  #switcher button:hover { background: rgba(255,255,255,.16); }
+  #switcher .label {
+    padding: 0 12px; white-space: nowrap; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  #switcher .label b { color: #ffb37a; }
+  #switcher .hint {
+    padding-right: 10px; color: rgba(255,255,255,.4); font-size: 11px;
+  }
+
+  .proto-note {
+    font-size: 11px; color: var(--muted); font-style: italic;
+  }
+
+  /* =========================== VARIANT A ================================= */
+  /* Query-first: a command palette. Everything is the search box.          */
+  .a-wrap {
+    min-height: 100vh; background: #16130f; color: #ece6dd;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0 20px;
+  }
+  .a-wrap.browse { justify-content: flex-start; padding-top: 16vh; }
+  .a-brand {
+    font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+    color: #6f6558; margin-bottom: 18px;
+  }
+  .a-palette { width: 100%; max-width: 640px; }
+  .a-inputrow {
+    display: flex; align-items: center; gap: 12px;
+    background: #221d17; border: 1px solid #383026; border-radius: 12px;
+    padding: 0 18px; box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .a-inputrow:focus-within { border-color: #b4531f; }
+  .a-inputrow svg { flex: none; opacity: .45; }
+  .a-input {
+    flex: 1; background: none; border: 0; outline: none;
+    color: #f4efe7; font-size: 22px; padding: 18px 0;
+  }
+  .a-input::placeholder { color: #5d5449; }
+  .a-scope {
+    font-size: 11px; color: #6f6558; border: 1px solid #383026;
+    border-radius: 5px; padding: 3px 7px; white-space: nowrap;
+  }
+  .a-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .a-chip {
+    background: #2c2419; border: 1px solid #4a3c28; color: #e0b48c;
+    border-radius: 999px; padding: 4px 10px; font-size: 12px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .a-chip button { background: none; border: 0; padding: 0; opacity: .6; }
+  .a-chip button:hover { opacity: 1; }
+
+  .a-results { margin-top: 22px; }
+  .a-group {
+    font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+    color: #5d5449; padding: 14px 6px 6px;
+  }
+  .a-row {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 10px 14px; border-radius: 8px; cursor: pointer;
+  }
+  .a-row:hover, .a-row.sel { background: #241e17; }
+  .a-row.sel { box-shadow: inset 2px 0 0 var(--accent); }
+  .a-kind {
+    font-family: var(--mono); font-size: 10px; color: #7f7365;
+    border: 1px solid #383026; border-radius: 4px; padding: 2px 5px;
+    flex: none; width: 34px; text-align: center;
+  }
+  .a-kind.calc { color: #d98b4a; border-color: #5b3f22; }
+  .a-name { font-size: 15px; flex: none; }
+  .a-desc {
+    font-size: 13px; color: #857a6b; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .a-root { font-size: 11px; color: #5d5449; flex: none; }
+  .a-hits { font-size: 12px; color: #6f6558; padding: 4px 14px 0 60px; }
+  .a-hits mark { background: #4d3a17; color: #ffc98a; border-radius: 2px; }
+  .a-foot {
+    display: flex; gap: 18px; justify-content: center;
+    margin: 26px 0 40px; font-size: 11px; color: #4f483e;
+  }
+  .a-foot kbd {
+    font-family: var(--mono); background: #241e17; border: 1px solid #383026;
+    border-radius: 4px; padding: 1px 5px; margin-right: 4px;
+  }
+  /* A — applet page: the palette collapses to a slim bar, content fills */
+  .a-bar {
+    width: 100%; border-bottom: 1px solid #2a231b; background: #16130f;
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 20px;
+  }
+  .a-bar .back {
+    background: none; border: 1px solid #383026; border-radius: 6px;
+    color: #857a6b; padding: 5px 10px; font-size: 12px;
+  }
+  .a-bar .back:hover { color: #ece6dd; border-color: #5d5449; }
+  .a-bar .slim {
+    flex: 1; max-width: 380px; background: #221d17; border: 1px solid #383026;
+    border-radius: 8px; padding: 7px 12px; color: #5d5449; font-size: 13px;
+  }
+  .a-bar .crumb { font-size: 13px; color: #857a6b; }
+  .a-bar .crumb b { color: #ece6dd; font-weight: 500; }
+  .a-page { width: 100%; max-width: 900px; padding: 32px 0 40px; }
+
+  /* =========================== VARIANT B ================================= */
+  /* Facet sidebar: persistent chrome, dense utilitarian list.              */
+  .b-wrap { display: grid; grid-template-columns: 244px 1fr; min-height: 100vh; }
+  .b-side {
+    background: #edeae4; border-right: 1px solid var(--line);
+    padding: 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .b-brand {
+    font-size: 13px; font-weight: 600; letter-spacing: .02em;
+    padding: 4px 6px 14px; display: flex; align-items: center; gap: 7px;
+  }
+  .b-brand span { width: 9px; height: 9px; border-radius: 2px; background: var(--accent); }
+  .b-filter {
+    width: 100%; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--paper); padding: 7px 9px; font-size: 13px; outline: none;
+  }
+  .b-filter:focus { border-color: var(--accent); }
+  .b-sect {
+    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); margin: 20px 0 7px; padding: 0 6px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .b-sect button {
+    background: none; border: 0; padding: 0; font-size: 10px;
+    color: var(--accent); text-transform: none; letter-spacing: 0;
+  }
+  .b-facet {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 6px; border-radius: 5px; font-size: 13px; cursor: pointer;
+  }
+  .b-facet:hover { background: #e3ded6; }
+  .b-facet input { margin: 0; accent-color: var(--accent); }
+  .b-facet .n {
+    margin-left: auto; font-size: 11px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .b-facet.off { opacity: .35; }
+  /* type-to-select: the highlighted candidate Enter would take */
+  .b-facet.hi { background: #f4dcc9; box-shadow: inset 2px 0 0 var(--accent); }
+  .b-facet.hi .ret {
+    margin-left: 4px; font-family: var(--mono); font-size: 10px; color: var(--accent);
+  }
+  .b-facet mark { background: #f6d8a8; color: #6d3a12; border-radius: 2px; padding: 0 1px; }
+  .b-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .b-chip {
+    background: var(--accent); color: #fff; border: 0; border-radius: 4px;
+    padding: 3px 6px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .b-chip span { opacity: .65; }
+  .b-chip:hover span { opacity: 1; }
+  .b-hint {
+    font-size: 11px; color: var(--muted); margin-top: 7px; padding: 0 2px;
+    line-height: 1.5;
+  }
+  .b-hint kbd {
+    font-family: var(--mono); background: #e3ded6; border: 1px solid #d5cec4;
+    border-radius: 3px; padding: 0 4px; font-size: 10px;
+  }
+  .b-hint b { color: var(--accent); font-weight: 600; }
+  .b-main { padding: 0; min-width: 0; }
+  .b-head {
+    position: sticky; top: 0; background: rgba(244,241,236,.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line); padding: 12px 22px;
+    display: flex; align-items: center; gap: 10px; z-index: 5;
+  }
+  .b-crumb { font-size: 13px; color: var(--muted); }
+  .b-crumb b { color: var(--ink); font-weight: 600; }
+  .b-crumb a { color: var(--accent); text-decoration: none; }
+  .b-crumb a:hover { text-decoration: underline; }
+  .b-count { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .b-list { padding: 4px 0; }
+  /* fixed template: every row is its own grid, so content-sized columns would
+     refuse to line up down the list. */
+  .b-item {
+    display: grid; grid-template-columns: 22px 210px minmax(0, 1fr) 296px;
+    gap: 14px; align-items: baseline;
+    padding: 9px 22px; border-bottom: 1px solid #eae5de; cursor: pointer;
+  }
+  .b-item:hover { background: var(--paper); }
+  .b-ico { font-size: 13px; color: var(--muted); }
+  .b-ico.calc { color: var(--accent); }
+  .b-nm {
+    font-size: 14px; font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .b-ds {
+    font-size: 13px; color: var(--muted); text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .b-tg { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; justify-content: flex-end; }
+  .b-tg i {
+    font-style: normal; font-size: 10px; color: var(--muted);
+    background: #eae5de; border-radius: 3px; padding: 2px 5px;
+  }
+  .b-tg i.on { background: #f4dcc9; color: #8f4419; }
+  .b-empty { padding: 60px 22px; color: var(--muted); font-size: 14px; }
+  .b-page { padding: 26px 22px 40px; max-width: 900px; }
+
+  /* =========================== VARIANT C ================================= */
+  /* Tag-first: the tag cloud is the landing surface. Big tactile cards.    */
+  .c-wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+  .c-top {
+    display: flex; align-items: center; gap: 16px;
+    padding: 20px 0 0;
+  }
+  .c-brand { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+  .c-brand em { font-style: normal; color: var(--accent); }
+  .c-search {
+    margin-left: auto; width: 210px; border: 1px solid var(--line);
+    border-radius: 999px; background: var(--paper);
+    padding: 7px 14px; font-size: 13px; outline: none;
+  }
+  .c-search:focus { border-color: var(--accent); width: 280px; }
+  .c-cloud {
+    display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: baseline;
+    padding: 30px 0 6px; border-bottom: 1px solid var(--line);
+  }
+  .c-tag {
+    background: none; border: 0; padding: 2px 4px; border-radius: 6px;
+    color: #4a423a; line-height: 1.15; font-weight: 600;
+    letter-spacing: -.01em;
+  }
+  .c-tag:hover { color: var(--accent); background: #f2e6dc; }
+  .c-tag.on { color: #fff; background: var(--accent); }
+  .c-tag u { text-decoration: none; opacity: .45; font-size: .62em; margin-left: 3px; }
+  .c-bar {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 14px 0; min-height: 30px;
+  }
+  .c-bar .lbl { font-size: 12px; color: var(--muted); }
+  .c-pill {
+    background: var(--accent); color: #fff; border: 0;
+    border-radius: 999px; padding: 4px 10px; font-size: 12px;
+    display: inline-flex; gap: 6px; align-items: center;
+  }
+  .c-clear {
+    background: none; border: 0; color: var(--muted);
+    font-size: 12px; text-decoration: underline; padding: 0;
+  }
+  .c-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+    gap: 14px; padding: 4px 0 40px;
+  }
+  .c-card {
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px; cursor: pointer;
+    display: flex; flex-direction: column; gap: 7px; min-height: 138px;
+    text-align: left; position: relative; overflow: hidden;
+  }
+  .c-card:hover { border-color: #c9c0b4; transform: translateY(-2px); }
+  .c-card::before {
+    content: ''; position: absolute; inset: 0 auto 0 0; width: 3px;
+    background: var(--rootc, #ccc);
+  }
+  .c-card .k {
+    font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .c-card .k b { color: var(--accent); font-weight: 600; }
+  .c-card .n { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+  .c-card .d { font-size: 12.5px; color: var(--muted); line-height: 1.45; flex: 1; }
+  .c-card .t { display: flex; gap: 4px; flex-wrap: wrap; }
+  .c-card .t i {
+    font-style: normal; font-size: 10px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px;
+  }
+  .c-card .t i.on { border-color: var(--accent); color: var(--accent); }
+  /* C — applet page takes over the screen entirely */
+  .c-appbar { display: flex; align-items: center; gap: 14px; padding: 18px 0 0; }
+  .c-back {
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 500;
+  }
+  .c-back:hover { border-color: var(--accent); color: var(--accent); }
+  .c-page { padding: 20px 0 40px; }
+
+  /* ---------- shared applet-page content (NOT shared layout) ------------- */
+  .ap-title { font-size: 27px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
+  .ap-sub { font-size: 14px; margin: 7px 0 0; opacity: .7; }
+  .ap-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+  .ap-meta i {
+    font-style: normal; font-size: 11px; padding: 2px 7px;
+    border-radius: 999px; border: 1px solid currentColor; opacity: .5;
+  }
+  .ap-grid {
+    display: grid; grid-template-columns: 290px 1fr; gap: 22px; margin-top: 24px;
+  }
+  @media (max-width: 780px) { .ap-grid { grid-template-columns: 1fr; } }
+  .panel {
+    border: 1px solid var(--line); border-radius: 10px;
+    background: var(--paper); padding: 16px;
+  }
+  .dark .panel { border-color: #2f281f; background: #1d1913; }
+  .panel h3 {
+    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    margin: 0 0 12px; opacity: .55; font-weight: 600;
+  }
+  .fld { margin-bottom: 13px; }
+  .fld label { display: block; font-size: 12.5px; margin-bottom: 5px; opacity: .75; }
+  .fld .ctl { display: flex; align-items: center; gap: 8px; }
+  .fld input, .fld select {
+    flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 6px;
+    background: #fff; padding: 8px 10px; font-size: 14px; outline: none;
+  }
+  .dark .fld input, .dark .fld select {
+    background: #14110d; border-color: #383026; color: #ece6dd;
+  }
+  .fld input:focus, .fld select:focus { border-color: var(--accent); }
+  .fld .unit { font-size: 12px; opacity: .5; width: 24px; }
+  .fld .help { font-size: 11px; opacity: .5; margin-top: 4px; }
+
+  .outs { display: flex; flex-direction: column; gap: 2px; }
+  .out {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 11px 0; border-bottom: 1px solid var(--line);
+  }
+  .dark .out { border-color: #2f281f; }
+  .out:last-child { border: 0; }
+  .out .lb { font-size: 13px; opacity: .65; flex: 1; }
+  .out .vl {
+    font-family: var(--mono); font-size: 25px; font-weight: 500;
+    letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+  }
+  .out .un { font-size: 12px; opacity: .5; width: 22px; }
+  .out.primary .vl { color: var(--accent); font-size: 34px; }
+  .fig {
+    margin-top: 14px; border: 1px solid var(--line); border-radius: 10px;
+    background: #fff; padding: 8px; overflow: hidden;
+  }
+  .dark .fig { background: #f7f4ef; border-color: #2f281f; }
+  .fig svg { display: block; width: 100%; height: auto; }
+  .cap { font-size: 11px; opacity: .5; margin-top: 8px; text-align: center; }
+
+  /* documentation content */
+  .doc { font-size: 15px; line-height: 1.65; max-width: 68ch; }
+  .doc h2 { font-size: 15px; margin: 26px 0 8px; letter-spacing: -.01em; }
+  .doc p { margin: 0 0 12px; opacity: .85; }
+  .doc table { border-collapse: collapse; width: 100%; margin: 12px 0 18px; font-size: 13.5px; }
+  .doc th, .doc td {
+    text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--line);
+    font-variant-numeric: tabular-nums;
+  }
+  .dark .doc th, .dark .doc td { border-color: #2f281f; }
+  .doc th { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .5; font-weight: 600; }
+  .doc td:first-child, .doc th:first-child { text-align: left; font-weight: 600; }
+  .doc tbody tr:hover { background: rgba(180,83,31,.05); }
+  .doc .note {
+    font-size: 12.5px; border-left: 2px solid var(--accent);
+    padding: 2px 0 2px 12px; opacity: .7; margin: 14px 0;
+  }
+  .table-scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<div id="switcher">
+  <button id="prev" title="Previous variant" aria-label="Previous variant">&#8592;</button>
+  <span class="label"><b id="vkey">A</b> <span id="vname"></span></span>
+  <button id="next" title="Next variant" aria-label="Next variant">&#8594;</button>
+  <span class="hint">prototype</span>
+</div>
+
+<script>
+/* ===========================================================================
+   DATA — fake but plausible. A UK workshop: deliberately mixed-unit, per the
+   map's Notes. Roots model provenance (built-in / mine / someone else's).
+   =========================================================================== */
+
+const ROOTS = {
+  'built-in': { label: 'built-in',        colour: '#8a8378' },
+  'mine':     { label: 'mine',            colour: '#b4531f' },
+  'brookes':  { label: "brookes-collection", colour: '#3f6b52' },
+};
+
+const APPLETS = [
+  { id:'pipe-bender-setback', name:'Pipe bender setback', type:'calculator', root:'built-in',
+    tags:['plumbing','copper','pipe-bending','geometry'],
+    desc:'Setting-out diagram and setback for a hand-bender bend at any angle.' },
+  { id:'thread-pitch', name:'Thread pitch reference', type:'documentation', root:'built-in',
+    tags:['fasteners','threads','metric','reference'],
+    desc:'Pitch, tapping and clearance drill sizes for M3-M20 coarse.' },
+  { id:'tap-drill', name:'Tap drill size', type:'calculator', root:'built-in',
+    tags:['fasteners','threads','drilling','metric'],
+    desc:'Tapping drill for a thread at a chosen percentage engagement.' },
+  { id:'clearance-holes', name:'Clearance holes', type:'calculator', root:'built-in',
+    tags:['fasteners','drilling','reference'],
+    desc:'Close, medium and free-fit clearance holes for metric bolts.' },
+  { id:'closest-bolt', name:'Closest bolt size', type:'calculator', root:'mine',
+    tags:['fasteners','identification'],
+    desc:'Measure an unknown fastener, get the nearest standard across metric, UNF, BSW and BA.' },
+  { id:'bsp-fittings', name:'BSP fitting sizes', type:'documentation', root:'built-in',
+    tags:['plumbing','fittings','imperial','reference'],
+    desc:'Why 1/2in BSP is not 1/2in: designation vs actual OD, parallel vs taper.' },
+  { id:'copper-pipe-dims', name:'Copper pipe dimensions', type:'documentation', root:'built-in',
+    tags:['plumbing','copper','reference','metric'],
+    desc:'OD, wall thickness and minimum bend radii for 15, 22 and 28mm.' },
+  { id:'whitworth-ba', name:'Whitworth, BSF and BA', type:'documentation', root:'brookes',
+    tags:['fasteners','threads','imperial','vintage'],
+    desc:'Thread tables for anything older than about 1970.' },
+  { id:'timber-sizes', name:'Timber sizes', type:'documentation', root:'mine',
+    tags:['timber','reference'],
+    desc:'Nominal vs actual sawn and planed sizes; sheet goods still sold 8x4.' },
+  { id:'spanner-cross-ref', name:'Spanner cross-reference', type:'documentation', root:'brookes',
+    tags:['fasteners','tools','imperial','metric'],
+    desc:'AF, Whitworth and metric spanners side by side, and what safely fits what.' },
+  { id:'drill-speeds', name:'Drill and cutter speeds', type:'calculator', root:'built-in',
+    tags:['drilling','tools','machining'],
+    desc:'Spindle speed from cutter diameter and material.' },
+  { id:'boiler-manual', name:'Boiler: Greenstar 30i', type:'documentation', root:'mine',
+    tags:['house','heating','manual'],
+    desc:'Fault codes, service intervals, and the manufacturer PDF in the folder.' },
+];
+
+const ALL_TAGS = (() => {
+  const m = new Map();
+  APPLETS.forEach(a => a.tags.forEach(t => m.set(t, (m.get(t) || 0) + 1)));
+  return [...m.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
+})();
+
+/* Body text, only for the applets you can actually open. Real Host renders
+   content.md via markdown-it-py; here it is inline HTML. */
+const CONTENT = {
+  'thread-pitch': `
+    <p>ISO metric coarse. Tapping drills are the practical shop sizes, not the
+    theoretical 100&#37; thread figures &mdash; nobody taps 100&#37; and you will snap the tap.</p>
+    <div class="table-scroll"><table>
+      <thead><tr><th>Thread</th><th>Pitch</th><th>Tapping</th><th>Close</th><th>Medium</th><th>Free</th></tr></thead>
+      <tbody>
+        <tr><td>M3</td><td>0.50</td><td>2.50</td><td>3.2</td><td>3.4</td><td>3.6</td></tr>
+        <tr><td>M4</td><td>0.70</td><td>3.30</td><td>4.3</td><td>4.5</td><td>4.8</td></tr>
+        <tr><td>M5</td><td>0.80</td><td>4.20</td><td>5.3</td><td>5.5</td><td>5.8</td></tr>
+        <tr><td>M6</td><td>1.00</td><td>5.00</td><td>6.4</td><td>6.6</td><td>7.0</td></tr>
+        <tr><td>M8</td><td>1.25</td><td>6.80</td><td>8.4</td><td>9.0</td><td>10.0</td></tr>
+        <tr><td>M10</td><td>1.50</td><td>8.50</td><td>10.5</td><td>11.0</td><td>12.0</td></tr>
+        <tr><td>M12</td><td>1.75</td><td>10.20</td><td>13.0</td><td>13.5</td><td>14.5</td></tr>
+        <tr><td>M16</td><td>2.00</td><td>14.00</td><td>17.0</td><td>17.5</td><td>18.5</td></tr>
+        <tr><td>M20</td><td>2.50</td><td>17.50</td><td>21.0</td><td>22.0</td><td>24.0</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note">Indicative values in a mockup. A real Applet of this shape is
+    <code>manifest.toml</code> + <code>content.md</code> and zero code.</div>
+    <h2>Fine pitches</h2>
+    <p>M8&#215;1.0 and M10&#215;1.25 turn up on anything automotive. Check before you reach for the tap.</p>`,
+  'copper-pipe-dims': `
+    <p>UK copper tube to BS EN 1057. Sizes are the <em>outside</em> diameter, unlike
+    almost everything else in the house.</p>
+    <div class="table-scroll"><table>
+      <thead><tr><th>Size</th><th>OD</th><th>Wall (R250)</th><th>Bend radius</th></tr></thead>
+      <tbody>
+        <tr><td>15mm</td><td>15.0</td><td>0.7</td><td>70.0 (bender)</td></tr>
+        <tr><td>22mm</td><td>22.0</td><td>0.9</td><td>99.0 (bender)</td></tr>
+        <tr><td>28mm</td><td>28.0</td><td>0.9</td><td>112.0 (former)</td></tr>
+      </tbody>
+    </table></div>
+    <div class="note">Bend radii here are <b>R<sub>outside</sub></b>, per the setback
+    convention. Benders do not publish former radii, so these are calibrations.</div>`,
+};
+
+/* ===========================================================================
+   PIPE-BENDER MATHS + SETTING-OUT DIAGRAM  (real, per issue #4)
+     setback   = R_outside x tan(theta/2)
+     R_outside = R_centreline + OD/2
+   Shared across variants because it is CONTENT, not layout.
+   =========================================================================== */
+
+const BENDERS = {
+  '15': { od: 15, rOutside: 70, note: 'Owner-calibrated. Implies R_cl = 4.17 x OD.' },
+  '22': { od: 22, rOutside: 99, note: 'BPEC default: R_cl = 4 x OD, so R_out = 88 + 11.' },
+};
+
+const rad = d => d * Math.PI / 180;
+
+function setback(rOutside, deg) { return rOutside * Math.tan(rad(deg) / 2); }
+
+/**
+ * Setting-out diagram. Correct, not merely plausible.
+ *
+ * Working in millimetres with the vertex at the origin. The outside-edge miter
+ * vertex sits at h*tan(t/2); stepping back along the outside edge by
+ * R_outside*tan(t/2) lands at -R_cl*tan(t/2) -- exactly the arc's tangent point,
+ * since (R_cl + h)*tan(t/2) - h*tan(t/2) = R_cl*tan(t/2). So the dimension drawn
+ * below IS the setback, to scale, and the mark it points at is where you really
+ * put the pencil. (Verified numerically for 15/22mm at 15/45/90 degrees.)
+ *
+ * The viewBox is fitted to the geometry, so a shallow 30-degree bend fills the
+ * frame as well as a 90-degree one. Text and hairlines are scaled by the
+ * viewBox width to keep their *apparent* size constant across angles.
+ */
+function diagramSVG(od, rOutside, deg) {
+  const h    = od / 2;                 // wall offset from centreline
+  const rCl  = rOutside - h;           // centreline radius
+  const th   = rad(deg);
+  const tan2 = Math.tan(th / 2);
+  const t    = rCl * tan2;             // tangent offset along each leg
+  const S    = rOutside * tan2;        // the setback
+  const cos = Math.cos(th), sin = Math.sin(th);
+
+  const legIn = 118, legOut = 104;
+  const start = { x: -(t + legIn), y: 0 };
+  const Tin   = { x: -t, y: 0 };
+  const Tout  = { x: t * cos, y: -t * sin };
+  const ctr   = { x: -t, y: -rCl };
+  const end   = { x: (t + legOut) * cos, y: -(t + legOut) * sin };
+
+  const oy     = h;                    // outside edge (the bend goes upward)
+  const miterX = h * tan2;             // outside-edge vertex
+  const sbX    = -t;                   // == the arc's tangent point, provably
+  const dimY   = h + 30;               // dimension line
+  const narrow = S < 58;               // too tight to sit the label between arrows
+
+  /* ---- fit the viewBox to the geometry ---- */
+  const pts = [start, Tin, Tout, end, { x: 0, y: 0 },
+               { x: miterX, y: oy }, { x: sbX, y: oy }];
+  const a0 = Math.atan2(Tin.y - ctr.y, Tin.x - ctr.x);
+  const a1 = Math.atan2(Tout.y - ctr.y, Tout.x - ctr.x);
+  for (let i = 0; i <= 16; i++) {
+    const a = a0 + (a1 - a0) * (i / 16);
+    pts.push({ x: ctr.x + rCl * Math.cos(a), y: ctr.y + rCl * Math.sin(a) });
+  }
+  let x0 = Math.min(...pts.map(p => p.x)) - h;
+  let x1 = Math.max(...pts.map(p => p.x)) + h;
+  let y0 = Math.min(...pts.map(p => p.y)) - h;
+  let y1 = Math.max(...pts.map(p => p.y)) + h;
+  y0 = Math.min(y0, -h - 24);                        // vertex / angle labels
+  y1 = Math.max(y1, dimY + 26);                      // dimension + "mark here"
+  x1 = Math.max(x1, miterX + 34);
+  x0 = Math.min(x0, sbX - 118);                      // "outside edge" label
+  if (narrow) x0 = Math.min(x0, sbX - 96);           // setback label parked left
+  const pad = 12;
+  x0 -= pad; x1 += pad; y0 -= pad; y1 += pad;
+  let w = x1 - x0, hh = y1 - y0;
+  if (w / hh < 1.5) { const nw = hh * 1.5; x0 -= (nw - w) / 2; w = nw; }
+
+  const fs  = w / 38;                   // constant apparent text size
+  const fsB = w / 31;
+  const sw  = w / 430;                  // constant apparent hairline
+
+  const f = n => n.toFixed(2);
+  const pipe = `M ${f(start.x)} ${f(start.y)} L ${f(Tin.x)} ${f(Tin.y)} ` +
+               `A ${f(rCl)} ${f(rCl)} 0 0 0 ${f(Tout.x)} ${f(Tout.y)} ` +
+               `L ${f(end.x)} ${f(end.y)}`;
+  const rAng = Math.min(44, rCl * 0.62);
+  const MONO = 'ui-monospace, monospace';
+
+  /* dimension: arrows point out to the extension lines when there is room,
+     and flip to outside-pointing-in when there is not (drafting convention). */
+  const dim = narrow
+    ? `<path d="M ${f(sbX - 26)} ${f(dimY)} L ${f(sbX)} ${f(dimY)}" marker-end="url(#ar)"/>
+       <path d="M ${f(miterX + 26)} ${f(dimY)} L ${f(miterX)} ${f(dimY)}" marker-end="url(#ar)"/>`
+    : `<path d="M ${f(sbX)} ${f(dimY)} L ${f(miterX)} ${f(dimY)}"
+             marker-start="url(#ar)" marker-end="url(#ar)"/>`;
+
+  const labX = narrow ? sbX - 32 : (sbX + miterX) / 2;
+  const labAnchor = narrow ? 'end' : 'middle';
+
+  return `
+<svg viewBox="${f(x0)} ${f(y0)} ${f(w)} ${f(hh)}" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="Setting-out diagram: ${deg} degree bend in ${od}mm pipe, setback ${S.toFixed(1)}mm from the vertex along the outside edge">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+            orient="auto-start-reverse">
+      <path d="M0,1.5 L9,5 L0,8.5 z" fill="#b4531f"/>
+    </marker>
+  </defs>
+
+  <!-- pipe -->
+  <path d="${pipe}" fill="none" stroke="#c3ced4" stroke-width="${od}"/>
+  <path d="${pipe}" fill="none" stroke="#41525b" stroke-width="${f(sw * 0.9)}"
+        stroke-dasharray="${f(sw * 7)} ${f(sw * 4)}" stroke-opacity=".5"/>
+
+  <!-- construction lines out to the vertex -->
+  <g stroke="#a89e92" stroke-width="${f(sw * 0.85)}" stroke-dasharray="${f(sw * 3)} ${f(sw * 3)}" fill="none">
+    <path d="M ${f(Tin.x)} 0 L 0 0"/>
+    <path d="M 0 0 L ${f(66 * cos)} ${f(-66 * sin)}"/>
+  </g>
+
+  <!-- angle at the vertex -->
+  <path d="M ${f(-rAng)} 0 A ${f(rAng)} ${f(rAng)} 0 0 1 ${f(-rAng * cos)} ${f(-rAng * sin)}"
+        fill="none" stroke="#b4531f" stroke-width="${f(sw)}" stroke-opacity=".55"/>
+  <text x="${f(-rAng - fs * 0.5)}" y="${f(-fs * 0.9)}" text-anchor="end" font-size="${f(fs)}"
+        fill="#b4531f" font-family="${MONO}">${deg}&#176;</text>
+  <circle cx="0" cy="0" r="${f(sw * 2.6)}" fill="#41525b"/>
+  <text x="${f(fs * 0.5)}" y="${f(-fs * 0.6)}" font-size="${f(fs)}" fill="#41525b"
+        font-family="${MONO}">vertex</text>
+
+  <!-- the outside edge: the reference surface the whole formula hangs on -->
+  <path d="M ${f(sbX - 46)} ${f(oy)} L ${f(miterX)} ${f(oy)}" stroke="#b4531f"
+        stroke-width="${f(sw * 1.8)}" stroke-opacity=".35"/>
+  <text x="${f(sbX - 50)}" y="${f(oy + fs * 1.15)}" text-anchor="end" font-size="${f(fs * 0.92)}"
+        fill="#8a7f72" font-family="${MONO}">outside edge</text>
+
+  <!-- setback -->
+  <g stroke="#b4531f" stroke-width="${f(sw)}" fill="none">
+    <path d="M ${f(sbX)} ${f(oy)} L ${f(sbX)} ${f(dimY + 7)}" stroke-dasharray="${f(sw * 3)} ${f(sw * 3)}" stroke-opacity=".6"/>
+    <path d="M ${f(miterX)} ${f(oy)} L ${f(miterX)} ${f(dimY + 7)}" stroke-dasharray="${f(sw * 3)} ${f(sw * 3)}" stroke-opacity=".6"/>
+    ${dim}
+  </g>
+  ${narrow ? '' : `<rect x="${f(labX - fsB * 1.9)}" y="${f(dimY - fsB * 0.72)}"
+        width="${f(fsB * 3.8)}" height="${f(fsB * 1.05)}" fill="#fff"/>`}
+  <text x="${f(labX)}" y="${f(dimY + fsB * 0.34)}" text-anchor="${labAnchor}"
+        font-size="${f(fsB)}" font-weight="600" fill="#b4531f"
+        font-family="${MONO}">${S.toFixed(1)}mm</text>
+
+  <!-- where the pencil actually goes -->
+  <circle cx="${f(sbX)}" cy="${f(oy)}" r="${f(sw * 2.8)}" fill="#b4531f"/>
+  <text x="${f(sbX)}" y="${f(dimY + fs * 2)}" text-anchor="middle" font-size="${f(fs * 0.92)}"
+        fill="#8a7f72" font-family="${MONO}">mark here</text>
+</svg>`;
+}
+
+/* ===========================================================================
+   STATE
+   =========================================================================== */
+
+const VARIANTS = {
+  A: 'Query-first',
+  B: 'Facet sidebar',
+  C: 'Tag-first',
+};
+const KEYS = Object.keys(VARIANTS);
+
+const state = {
+  variant: 'A',
+  view: 'browse',            // 'browse' | 'applet'
+  appletId: null,
+  query: '',
+  tagHi: 0,                  // highlighted typeahead candidate (variant B)
+  tags: new Set(),
+  roots: new Set(),          // empty == all (variant B only)
+  // pipe-bender inputs, shared so the calculator keeps its value across variants
+  calc: { size: '15', angle: 90 },
+  saved: false,
+};
+
+function matches(a) {
+  const q = state.query.trim().toLowerCase();
+  if (state.tags.size && ![...state.tags].every(t => a.tags.includes(t))) return false;
+  if (state.roots.size && !state.roots.has(a.root)) return false;
+  if (!q) return true;
+  const body = (CONTENT[a.id] || '').replace(/<[^>]+>/g, ' ').toLowerCase();
+  return (a.name + ' ' + a.desc + ' ' + a.tags.join(' ') + ' ' + body).toLowerCase().includes(q);
+}
+
+const results = () => APPLETS.filter(matches);
+const applet  = () => APPLETS.find(a => a.id === state.appletId);
+
+/* Count how many results a tag would still leave — facets need this. */
+function tagCount(tag) {
+  const had = state.tags.has(tag);
+  state.tags.add(tag);
+  const n = APPLETS.filter(matches).length;
+  if (!had) state.tags.delete(tag);
+  return n;
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function highlight(text) {
+  const q = state.query.trim();
+  if (!q) return esc(text);
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return esc(text);
+  return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length));
+}
+
+function open(id) { state.appletId = id; state.view = 'applet'; state.saved = false; render(); }
+function browse() { state.view = 'browse'; state.appletId = null; render(); }
+function toggleTag(t) { state.tags.has(t) ? state.tags.delete(t) : state.tags.add(t); render(); }
+
+/* ===========================================================================
+   APPLET PAGE CONTENT — shared inner content, per-variant framing.
+   =========================================================================== */
+
+function calcBody() {
+  const b = BENDERS[state.calc.size];
+  const deg = state.calc.angle;
+  const S = setback(b.rOutside, deg);
+  const rCl = b.rOutside - b.od / 2;
+
+  return `
+  <div class="ap-grid">
+    <div>
+      <div class="panel">
+        <h3>Inputs</h3>
+        <div class="fld">
+          <label for="i-size">Pipe size</label>
+          <div class="ctl">
+            <select id="i-size">
+              <option value="15" ${state.calc.size === '15' ? 'selected' : ''}>15mm copper</option>
+              <option value="22" ${state.calc.size === '22' ? 'selected' : ''}>22mm copper</option>
+            </select>
+          </div>
+          <div class="help">${esc(b.note)}</div>
+        </div>
+        <div class="fld">
+          <label for="i-angle">Bend angle</label>
+          <div class="ctl">
+            <input id="i-angle" type="number" min="10" max="90" step="1" value="${deg}">
+            <span class="unit">&#176;</span>
+          </div>
+          <div class="help">A 90&#176; bend needs no calculation &mdash; it is the off-angles this earns its keep on.</div>
+        </div>
+        <div class="fld">
+          <label for="i-rout">Bender radius (R<sub>outside</sub>)</label>
+          <div class="ctl">
+            <input id="i-rout" type="number" value="${b.rOutside}" step="0.5">
+            <span class="unit">mm</span>
+          </div>
+          <div class="help">Calibration, from the Manifest.</div>
+        </div>
+        <div data-slot="save"></div>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <h3>Result</h3>
+        <div class="outs">
+          <div class="out primary">
+            <span class="lb">Setback<br><span style="font-size:11px;opacity:.7">from vertex, along outside edge</span></span>
+            <span class="vl">${S.toFixed(1)}</span><span class="un">mm</span>
+          </div>
+          <div class="out">
+            <span class="lb">R<sub>outside</sub></span>
+            <span class="vl" style="font-size:17px">${b.rOutside.toFixed(1)}</span><span class="un">mm</span>
+          </div>
+          <div class="out">
+            <span class="lb">R<sub>centreline</sub></span>
+            <span class="vl" style="font-size:17px">${rCl.toFixed(1)}</span><span class="un">mm</span>
+          </div>
+        </div>
+        <div class="fig">${diagramSVG(b.od, b.rOutside, deg)}</div>
+        <div class="cap">Graphic Output &mdash; an SVG string the Applet returns; the Host just embeds it.</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function docBody(a) {
+  return `<div class="doc">${CONTENT[a.id] || '<p>No content in this mockup.</p>'}</div>`;
+}
+
+function appletBody(a) {
+  return a.type === 'calculator' && a.id === 'pipe-bender-setback'
+    ? calcBody()
+    : (CONTENT[a.id] ? docBody(a)
+       : `<div class="doc"><p class="proto-note">Not mocked up &mdash; open <b>Pipe bender setback</b>,
+          <b>Thread pitch reference</b> or <b>Copper pipe dimensions</b> to see a real page.</p></div>`);
+}
+
+/* Save-as-defaults: each variant answers "where does this live" DIFFERENTLY.
+   That disagreement is the point of the ticket. */
+function saveSlot(html) {
+  const el = document.querySelector('[data-slot="save"]');
+  if (el) el.innerHTML = html;
+}
+
+/* ===========================================================================
+   VARIANT A — Query-first
+   The search box is the interface. Tags are typed (`#plumbing`) or clicked into
+   the box as chips. Keyboard-driven. No browse surface at all: if you cannot
+   name it, you narrow by typing. Applet page collapses the palette to a bar.
+   =========================================================================== */
+
+function renderA() {
+  const app = document.getElementById('app');
+  const rs = results();
+
+  if (state.view === 'applet') {
+    const a = applet();
+    app.innerHTML = `
+      <div class="a-wrap dark" style="align-items:stretch;padding:0">
+        <div class="a-bar">
+          <button class="back" id="a-back">&#8592; Esc</button>
+          <span class="crumb">${esc(ROOTS[a.root].label)} / <b>${esc(a.name)}</b></span>
+          <div class="slim" id="a-slim" style="margin-left:auto;text-align:left">
+            &#8984;K &nbsp;Search applets&hellip;
+          </div>
+        </div>
+        <div style="display:flex;justify-content:center">
+          <div class="a-page">
+            <h1 class="ap-title">${esc(a.name)}</h1>
+            <p class="ap-sub">${esc(a.desc)}</p>
+            <div class="ap-meta">
+              <i>${esc(a.type)}</i>${a.tags.map(t => `<i>#${esc(t)}</i>`).join('')}
+            </div>
+            ${appletBody(a)}
+          </div>
+        </div>
+      </div>`;
+    // A's answer: save-as-defaults is a keyboard affordance, quiet and inline.
+    saveSlot(`
+      <button id="a-save" style="background:none;border:0;padding:6px 0;font-size:12px;
+        color:${state.saved ? '#7fae82' : '#857a6b'};text-decoration:underline;text-underline-offset:3px">
+        ${state.saved ? '&#10003; Saved to Manifest' : 'Save as defaults'}
+        <span style="font-family:var(--mono);opacity:.6;margin-left:5px">&#8984;S</span>
+      </button>`);
+    document.getElementById('a-back').onclick = browse;
+    document.getElementById('a-slim').onclick = browse;
+    const sv = document.getElementById('a-save');
+    if (sv) sv.onclick = () => { state.saved = true; render(); };
+    wireCalc();
+    return;
+  }
+
+  const grouped = { calculator: [], documentation: [] };
+  rs.forEach(a => grouped[a.type].push(a));
+
+  app.innerHTML = `
+    <div class="a-wrap browse">
+      <div class="a-brand">Workshop Helper</div>
+      <div class="a-palette">
+        <div class="a-inputrow">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>
+          </svg>
+          <input class="a-input" id="a-q" placeholder="Search or #tag&hellip;" value="${esc(state.query)}" autofocus>
+          <span class="a-scope">${rs.length} of ${APPLETS.length}</span>
+        </div>
+        ${state.tags.size ? `<div class="a-chips">${[...state.tags].map(t =>
+          `<span class="a-chip">#${esc(t)}<button data-untag="${esc(t)}">&#215;</button></span>`).join('')}
+        </div>` : ''}
+        <div class="a-results">
+          ${['calculator', 'documentation'].map(kind => {
+            const g = grouped[kind];
+            if (!g.length) return '';
+            return `<div class="a-group">${kind === 'calculator' ? 'calculators' : 'documentation'} &middot; ${g.length}</div>` + g.map((a, i) => {
+              const q = state.query.trim().toLowerCase();
+              const body = (CONTENT[a.id] || '').replace(/<[^>]+>/g, ' ');
+              const bodyHit = q && !a.name.toLowerCase().includes(q) && body.toLowerCase().includes(q);
+              const at = body.toLowerCase().indexOf(q);
+              return `
+              <div class="a-row ${kind === 'calculator' && i === 0 && !state.query ? 'sel' : ''}" data-open="${a.id}">
+                <span class="a-kind ${kind === 'calculator' ? 'calc' : ''}">${kind === 'calculator' ? 'calc' : 'doc'}</span>
+                <span class="a-name">${highlight(a.name)}</span>
+                <span class="a-desc">${highlight(a.desc)}</span>
+                <span class="a-root">${esc(ROOTS[a.root].label)}</span>
+              </div>
+              ${bodyHit ? `<div class="a-hits">&#8627; in content: &hellip;${highlight(body.slice(Math.max(0, at - 38), at + 46).trim())}&hellip;</div>` : ''}`;
+            }).join('');
+          }).join('')}
+          ${!rs.length ? `<div style="padding:40px 14px;color:#5d5449;font-size:14px">
+            No Applet matches. Tags are the only categorisation &mdash; try a broader one.</div>` : ''}
+        </div>
+        <div class="a-foot">
+          <span><kbd>&#8593;&#8595;</kbd>navigate</span>
+          <span><kbd>&#8629;</kbd>open</span>
+          <span><kbd>#</kbd>tag</span>
+          <span>${ALL_TAGS.slice(0, 5).map(([t]) => `<a href="#" data-tag="${esc(t)}" style="color:#6f6558;text-decoration:none">#${esc(t)}</a>`).join(' ')}</span>
+        </div>
+      </div>
+    </div>`;
+
+  const q = document.getElementById('a-q');
+  q.oninput = e => {
+    const v = e.target.value;
+    // typing `#tag ` promotes it to a chip — tags live inside the query
+    const m = v.match(/#([a-z-]+)\s$/i);
+    if (m && ALL_TAGS.some(([t]) => t === m[1].toLowerCase())) {
+      state.tags.add(m[1].toLowerCase());
+      state.query = v.replace(/#[a-z-]+\s$/i, '').trim();
+    } else {
+      state.query = v;
+    }
+    render();
+    const nq = document.getElementById('a-q');
+    if (nq) { nq.focus(); nq.setSelectionRange(nq.value.length, nq.value.length); }
+  };
+  app.querySelectorAll('[data-open]').forEach(el => el.onclick = () => open(el.dataset.open));
+  app.querySelectorAll('[data-untag]').forEach(el => el.onclick = () => { state.tags.delete(el.dataset.untag); render(); });
+  app.querySelectorAll('[data-tag]').forEach(el => el.onclick = e => { e.preventDefault(); toggleTag(el.dataset.tag); });
+}
+
+/* ===========================================================================
+   VARIANT B — Facet sidebar  [CHOSEN, 2026-07-15]
+   Tags and Roots as checkable facets in persistent chrome, with live counts
+   and dead facets greyed out. Dense list. The sidebar never goes away, so you
+   can jump sideways from an Applet page without going "back".
+
+   The filter box is a TOKEN INPUT, not a text filter: typing narrows the tag
+   list and Enter promotes the highlighted tag to a facet chip. "imp" + Enter
+   => imperial; "cop" + Enter => copper. Clicking the checkboxes still works,
+   but you never have to. Text that matches no tag falls back to a free-text
+   search over the list, so one box does both jobs.
+   =========================================================================== */
+
+/** Tags matching a typed prefix. Prefix hits rank above substring hits, so
+ *  "imp" offers imperial before anything merely containing "imp". */
+function tagMatches(q) {
+  const s = q.trim().toLowerCase();
+  if (!s) return [];
+  const starts = [], contains = [];
+  ALL_TAGS.forEach(e => {
+    if (e[0].startsWith(s)) starts.push(e);
+    else if (e[0].includes(s)) contains.push(e);
+  });
+  return [...starts, ...contains];
+}
+
+function tagLabel(t, q) {
+  const s = q.trim().toLowerCase();
+  const i = s ? t.indexOf(s) : -1;
+  if (i < 0) return esc(t);
+  return esc(t.slice(0, i)) + '<mark>' + esc(t.slice(i, i + s.length)) + '</mark>' + esc(t.slice(i + s.length));
+}
+
+function renderB() {
+  const app = document.getElementById('app');
+  const rs = results();
+  const a = state.view === 'applet' ? applet() : null;
+
+  const q = state.query.trim();
+  const tm = tagMatches(q);
+  const hi = tm.length ? Math.max(0, Math.min(state.tagHi, tm.length - 1)) : 0;
+  const shown = q ? tm : ALL_TAGS;
+
+  const facets = shown.map(([t, n], i) => {
+    const on = state.tags.has(t);
+    const reach = on ? n : tagCount(t);
+    const isHi = q && i === hi;
+    return `<label class="b-facet ${reach === 0 && !on ? 'off' : ''} ${isHi ? 'hi' : ''}">
+      <input type="checkbox" data-tag="${esc(t)}" ${on ? 'checked' : ''}>
+      <span>${tagLabel(t, q)}</span>
+      ${isHi ? '<span class="ret">&#8629;</span>' : ''}
+      <span class="n">${reach}</span>
+    </label>`;
+  }).join('') || `<div class="b-hint" style="padding:4px 6px">No tag matches
+    &ldquo;${esc(q)}&rdquo; &mdash; searching text instead.</div>`;
+
+  const rootFacets = Object.entries(ROOTS).map(([k, v]) => {
+    const n = APPLETS.filter(x => x.root === k).length;
+    return `<label class="b-facet">
+      <input type="checkbox" data-root="${esc(k)}" ${state.roots.has(k) ? 'checked' : ''}>
+      <span style="display:inline-flex;align-items:center;gap:6px">
+        <i style="width:7px;height:7px;border-radius:50%;background:${v.colour};display:inline-block"></i>
+        ${esc(v.label)}</span><span class="n">${n}</span>
+    </label>`;
+  }).join('');
+
+  app.innerHTML = `
+    <div class="b-wrap">
+      <aside class="b-side">
+        <div class="b-brand"><span></span>Workshop Helper</div>
+        <input class="b-filter" id="b-q" placeholder="Filter &mdash; type a tag&hellip;"
+               value="${esc(state.query)}" autocomplete="off">
+        ${state.tags.size ? `<div class="b-chips">${[...state.tags].map(t =>
+          `<button class="b-chip" data-untag="${esc(t)}">${esc(t)}<span>&#215;</span></button>`).join('')}
+        </div>` : ''}
+        <div class="b-hint">${
+          tm.length
+            ? (() => {
+                const t = tm[hi][0];
+                const reach = state.tags.has(t) ? null : tagCount(t);
+                // Facets AND, so a fast typist can pick a combination nothing has.
+                // Say so before Enter, not after.
+                const tail = reach === null ? '<span style="opacity:.6">(on)</span>'
+                  : reach === 0 ? '<b>&mdash; leaves nothing</b>'
+                  : `<span style="opacity:.6">&mdash; ${reach} left</span>`;
+                return `<kbd>&#8629;</kbd> <b>${esc(t)}</b> ${tail}`
+                     + (tm.length > 1 ? ` &nbsp;<kbd>&#8593;&#8595;</kbd> ${tm.length - 1} more` : '');
+              })()
+            : state.tags.size
+              ? `<kbd>&#9003;</kbd> removes the last tag`
+              : `Type <b>imp</b> for imperial, <b>cop</b> for copper&hellip;`
+        }</div>
+        <div class="b-sect">Tags ${state.tags.size ? '<button id="b-clear">clear</button>' : ''}</div>
+        ${facets}
+        <div class="b-sect">Roots</div>
+        ${rootFacets}
+        <div class="b-sect">&nbsp;</div>
+        <div class="proto-note" style="padding:0 6px">Facets AND together. Counts show what
+        each tag would still leave.</div>
+      </aside>
+      <main class="b-main">
+        <div class="b-head">
+          <span class="b-crumb">${a
+            ? `<a href="#" id="b-up">Applets</a> / ${esc(ROOTS[a.root].label)} / <b>${esc(a.name)}</b>`
+            : `<b>Applets</b>`}</span>
+          <span class="b-count">${a ? esc(a.type) : `${rs.length} of ${APPLETS.length}`}</span>
+        </div>
+        ${a ? `<div class="b-page">
+            <h1 class="ap-title">${esc(a.name)}</h1>
+            <p class="ap-sub">${esc(a.desc)}</p>
+            <div class="ap-meta">${a.tags.map(t => `<i>${esc(t)}</i>`).join('')}</div>
+            ${appletBody(a)}
+          </div>`
+        : `<div class="b-list">
+            ${rs.map(x => `
+              <div class="b-item" data-open="${x.id}">
+                <span class="b-ico ${x.type === 'calculator' ? 'calc' : ''}">${x.type === 'calculator' ? '&#9636;' : '&#9776;'}</span>
+                <span class="b-nm">${highlight(x.name)}</span>
+                <span class="b-ds">${highlight(x.desc)}</span>
+                <span class="b-tg">${x.tags.map(t => `<i class="${state.tags.has(t) ? 'on' : ''}">${esc(t)}</i>`).join('')}</span>
+              </div>`).join('')}
+            ${!rs.length ? `<div class="b-empty">
+              No Applet has ${state.tags.size ? 'all of ' + [...state.tags].map(t => `<b>${esc(t)}</b>`).join(' + ') : 'that'}.
+              ${state.tags.size > 1 ? `<button id="b-drop" style="background:none;border:0;padding:0;
+                color:var(--accent);text-decoration:underline;font-size:14px">drop
+                ${esc([...state.tags].pop())}</button>` : ''}
+              <div class="proto-note" style="margin-top:8px">Facets AND. Per ADR-0003 there is no
+              folder tree to fall back to, so a dead end has to be recoverable in one click.</div>
+            </div>` : ''}
+          </div>`}
+      </main>
+    </div>`;
+
+  const refocus = () => {
+    const n = document.getElementById('b-q');
+    if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
+  };
+  const qEl = document.getElementById('b-q');
+  qEl.oninput = e => { state.query = e.target.value; state.tagHi = 0; render(); refocus(); };
+  qEl.onkeydown = e => {
+    const m = tagMatches(state.query);
+    if (e.key === 'Enter' && m.length) {
+      e.preventDefault();
+      // the whole point: promote the highlighted tag to a facet, box clears ready
+      // for the next one, so "imp<CR>cop<CR>" lands two facets without the mouse.
+      toggleTag(m[Math.min(state.tagHi, m.length - 1)][0]);
+      state.query = ''; state.tagHi = 0; render(); refocus();
+    } else if (e.key === 'ArrowDown' && m.length) {
+      e.preventDefault(); state.tagHi = Math.min(state.tagHi + 1, m.length - 1); render(); refocus();
+    } else if (e.key === 'ArrowUp' && m.length) {
+      e.preventDefault(); state.tagHi = Math.max(state.tagHi - 1, 0); render(); refocus();
+    } else if (e.key === 'Escape' && state.query) {
+      e.preventDefault(); state.query = ''; state.tagHi = 0; render(); refocus();
+    } else if (e.key === 'Backspace' && !state.query && state.tags.size) {
+      e.preventDefault(); state.tags.delete([...state.tags].pop()); render(); refocus();
+    }
+  };
+  app.querySelectorAll('[data-tag]').forEach(el => el.onchange = () => toggleTag(el.dataset.tag));
+  app.querySelectorAll('[data-untag]').forEach(el => el.onclick = () => {
+    state.tags.delete(el.dataset.untag); render();
+  });
+  app.querySelectorAll('[data-root]').forEach(el => el.onchange = () => {
+    const r = el.dataset.root;
+    state.roots.has(r) ? state.roots.delete(r) : state.roots.add(r);
+    render();
+  });
+  app.querySelectorAll('[data-open]').forEach(el => el.onclick = () => open(el.dataset.open));
+  const c = document.getElementById('b-clear'); if (c) c.onclick = () => { state.tags.clear(); render(); };
+  const up = document.getElementById('b-up'); if (up) up.onclick = e => { e.preventDefault(); browse(); };
+  const dp = document.getElementById('b-drop');
+  if (dp) dp.onclick = () => { state.tags.delete([...state.tags].pop()); render(); };
+
+  // B's answer: an explicit, always-visible action strip on the input panel.
+  saveSlot(`
+    <div style="border-top:1px solid var(--line);margin-top:4px;padding-top:12px;display:flex;gap:8px">
+      <button id="b-save" style="flex:1;background:${state.saved ? '#eef3ee' : 'var(--accent)'};
+        color:${state.saved ? '#3f6b52' : '#fff'};border:1px solid ${state.saved ? '#cfe0d4' : 'var(--accent)'};
+        border-radius:6px;padding:8px;font-size:13px;font-weight:500">
+        ${state.saved ? '&#10003; Saved' : 'Save as defaults'}</button>
+      <button id="b-reset" style="background:none;border:1px solid var(--line);border-radius:6px;
+        padding:8px 10px;font-size:13px;color:var(--muted)">Reset</button>
+    </div>
+    <div class="proto-note" style="margin-top:7px">Writes back to <code>manifest.toml</code>.</div>`);
+  const bs = document.getElementById('b-save');
+  if (bs) bs.onclick = () => { state.saved = true; render(); };
+  const br = document.getElementById('b-reset');
+  if (br) br.onclick = () => { state.calc = { size: '15', angle: 90 }; state.saved = false; render(); };
+  wireCalc();
+}
+
+/* ===========================================================================
+   VARIANT C — Tag-first
+   The tag cloud IS the landing page, sized by count: you see the shape of the
+   collection before you know what you want. Search is secondary, top-right.
+   The Applet page takes over the whole screen — no persistent chrome.
+   =========================================================================== */
+
+function renderC() {
+  const app = document.getElementById('app');
+  const rs = results();
+  const a = state.view === 'applet' ? applet() : null;
+
+  if (a) {
+    app.innerHTML = `
+      <div class="c-wrap">
+        <div class="c-appbar">
+          <button class="c-back" id="c-back">&#8592; All applets</button>
+          <span style="font-size:12px;color:var(--muted)">
+            <i style="width:7px;height:7px;border-radius:50%;background:${ROOTS[a.root].colour};display:inline-block;margin-right:5px"></i>
+            ${esc(ROOTS[a.root].label)}</span>
+        </div>
+        <div class="c-page">
+          <h1 class="ap-title" style="font-size:36px">${esc(a.name)}</h1>
+          <p class="ap-sub" style="font-size:15px">${esc(a.desc)}</p>
+          <div class="ap-meta">${a.tags.map(t => `<i data-jump="${esc(t)}" style="cursor:pointer">#${esc(t)}</i>`).join('')}</div>
+          ${appletBody(a)}
+        </div>
+      </div>`;
+    document.getElementById('c-back').onclick = browse;
+    // Tags on the applet page jump straight back into a filtered browse.
+    app.querySelectorAll('[data-jump]').forEach(el => el.onclick = () => {
+      state.tags.clear(); state.tags.add(el.dataset.jump); browse();
+    });
+    // C's answer: a full-width pill under the inputs, part of the flow.
+    saveSlot(`
+      <button id="c-save" style="width:100%;border-radius:999px;padding:10px;font-size:13px;
+        font-weight:600;border:1px solid ${state.saved ? '#cfe0d4' : 'var(--line)'};
+        background:${state.saved ? '#eef3ee' : '#fff'};color:${state.saved ? '#3f6b52' : 'var(--ink)'}">
+        ${state.saved ? '&#10003; These are now the defaults' : 'Make these my defaults'}</button>`);
+    const cs = document.getElementById('c-save');
+    if (cs) cs.onclick = () => { state.saved = true; render(); };
+    wireCalc();
+    return;
+  }
+
+  const max = ALL_TAGS[0][1];
+  app.innerHTML = `
+    <div class="c-wrap">
+      <div class="c-top">
+        <div class="c-brand">Workshop <em>Helper</em></div>
+        <input class="c-search" id="c-q" placeholder="Search&hellip;" value="${esc(state.query)}">
+      </div>
+      <div class="c-cloud">
+        ${ALL_TAGS.map(([t, n]) => {
+          const size = 14 + (n / max) * 20;
+          return `<button class="c-tag ${state.tags.has(t) ? 'on' : ''}" data-tag="${esc(t)}"
+            style="font-size:${size.toFixed(1)}px">${esc(t)}<u>${n}</u></button>`;
+        }).join('')}
+      </div>
+      <div class="c-bar">
+        ${state.tags.size || state.query
+          ? `<span class="lbl">Showing ${rs.length}:</span>
+             ${[...state.tags].map(t => `<button class="c-pill" data-untag="${esc(t)}">${esc(t)} &#215;</button>`).join('')}
+             ${state.query ? `<button class="c-pill" data-unq="1">&ldquo;${esc(state.query)}&rdquo; &#215;</button>` : ''}
+             <button class="c-clear" id="c-clear">clear all</button>`
+          : `<span class="lbl">${APPLETS.length} applets across ${Object.keys(ROOTS).length} roots &mdash; pick a tag, or just browse.</span>`}
+      </div>
+      <div class="c-grid">
+        ${rs.map(x => `
+          <button class="c-card" data-open="${x.id}" style="--rootc:${ROOTS[x.root].colour}">
+            <span class="k">${x.type === 'calculator' ? '<b>calculator</b>' : 'documentation'}</span>
+            <span class="n">${highlight(x.name)}</span>
+            <span class="d">${highlight(x.desc)}</span>
+            <span class="t">${x.tags.map(t => `<i class="${state.tags.has(t) ? 'on' : ''}">${esc(t)}</i>`).join('')}</span>
+          </button>`).join('')}
+      </div>
+      ${!rs.length ? `<div style="padding:40px 0;color:var(--muted)">Nothing matches that combination.</div>` : ''}
+    </div>`;
+
+  const q = document.getElementById('c-q');
+  q.oninput = e => {
+    state.query = e.target.value; render();
+    const n = document.getElementById('c-q');
+    n.focus(); n.setSelectionRange(n.value.length, n.value.length);
+  };
+  app.querySelectorAll('[data-tag]').forEach(el => el.onclick = () => toggleTag(el.dataset.tag));
+  app.querySelectorAll('[data-untag]').forEach(el => el.onclick = () => { state.tags.delete(el.dataset.untag); render(); });
+  app.querySelectorAll('[data-unq]').forEach(el => el.onclick = () => { state.query = ''; render(); });
+  app.querySelectorAll('[data-open]').forEach(el => el.onclick = () => open(el.dataset.open));
+  const c = document.getElementById('c-clear');
+  if (c) c.onclick = () => { state.tags.clear(); state.query = ''; render(); };
+}
+
+/* ---- calculator wiring (shared; the round-trip is faked in-memory) ------- */
+function wireCalc() {
+  const size = document.getElementById('i-size');
+  const ang  = document.getElementById('i-angle');
+  const rout = document.getElementById('i-rout');
+  if (!size) return;
+  size.onchange = e => { state.calc.size = e.target.value; state.saved = false; render(); };
+  ang.oninput = e => {
+    const v = Math.max(10, Math.min(90, Number(e.target.value) || 10));
+    state.calc.angle = v; state.saved = false; render();
+    const n = document.getElementById('i-angle'); if (n) n.focus();
+  };
+  rout.oninput = e => {
+    const v = Number(e.target.value);
+    if (v > 0) { BENDERS[state.calc.size].rOutside = v; state.saved = false; render();
+      const n = document.getElementById('i-rout'); if (n) n.focus(); }
+  };
+}
+
+/* ===========================================================================
+   RENDER + SWITCHER
+   =========================================================================== */
+
+function render() {
+  ({ A: renderA, B: renderB, C: renderC })[state.variant]();
+  document.getElementById('vkey').textContent = state.variant;
+  document.getElementById('vname').textContent = '— ' + VARIANTS[state.variant];
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('variant', state.variant);
+    history.replaceState(null, '', u);
+  } catch (_) { /* file:// can refuse replaceState — the prototype does not care */ }
+}
+
+function cycle(step) {
+  const i = KEYS.indexOf(state.variant);
+  state.variant = KEYS[(i + step + KEYS.length) % KEYS.length];
+  render();
+}
+
+document.getElementById('prev').onclick = () => cycle(-1);
+document.getElementById('next').onclick = () => cycle(1);
+
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  if (e.key === 'Escape' && state.view === 'applet') { browse(); return; }
+  if (typing) return;
+  if (e.key === 'ArrowLeft')  cycle(-1);
+  if (e.key === 'ArrowRight') cycle(1);
+});
+
+(function init() {
+  try {
+    const v = new URL(location.href).searchParams.get('variant');
+    if (v && KEYS.includes(v.toUpperCase())) state.variant = v.toUpperCase();
+  } catch (_) {}
+  render();
+})();
+</script>
+</body>
+</html>
