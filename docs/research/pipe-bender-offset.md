@@ -33,9 +33,19 @@ Swagelok's published Adjustment method.**
 is exact *for that convention*. It becomes wrong by one gain only if you mark it on **straight pipe
 as a tangent-point gap** — and the two published methods that use it never do that.
 
-**There is no UK convention to match.** BPEC teaches offsets with **no formula whatsoever** (§4) —
-scale drawing plus template, exactly as #4 found for 90° bends. This is the strongest finding in
-this document and it should shape the Applet.
+**BPEC teaches offsets with no formula whatsoever** (§4) — scale drawing plus template, exactly as
+#4 found for 90° bends.
+
+**But the UK trade convention exists, and it is transposed** (§4A — added on review, from a source
+the repo owner supplied). A UK plumber's masterclass teaches the multiplier method explicitly, marks
+both points on straight pipe (the case this document predicted would be wrong by one gain), and
+**swaps the 30° and 60° multipliers** — using `1.2` for 30° where `1/sin 30° = 2`. Wanting an 80mm
+set, that delivers **48mm at 30°** and **144mm at 60°**. It is demonstrated only at 45° — the fixed
+point of the swap, and the one angle where the error cannot show.
+
+**This, not the gain, is the Applet's business case.** The gain is 0.3–2.7mm at the angles UK
+plumbers actually use, and at 45° the trade's rounding of 1.4142 → 1.4 cancels ~42% of it anyway.
+The transposition is a **30–60mm** error, and it is in circulation.
 
 **Implement `mark gap = R_cl·θ + m`, and label it as a tangent-point distance on straight pipe.**
 Show `D/sin θ` alongside it, labelled as the vertex distance. Showing one without the other is how
@@ -233,7 +243,15 @@ out both marks on straight conduit and never mentions gain at all — see §5.
 
 ## 4. Q3 — What does BPEC actually teach for offsets?
 
-### **Nothing arithmetic. There is no UK convention to match.** [S]
+### **Nothing arithmetic — but "no UK convention exists" was too strong. See §4A.** [S]
+
+> **Corrected on review.** This section's original headline read *"There is no UK convention to
+> match."* The BPEC finding below is sound and unchanged: **the awarding body teaches no formula.**
+> But the repo owner then supplied a UK plumber's pipe-bending masterclass that teaches a multiplier
+> method explicitly (§4A). **"BPEC teaches no formula" ≠ "UK plumbers use no formula."** The
+> convention exists; it is transmitted on site and on YouTube rather than through the syllabus, and
+> the version in circulation is **transposed**. That is a far more useful finding than its absence
+> would have been — and it is the one this research got wrong by only reading what is published.
 
 I read both BPEC documents end to end. **Neither contains a multiplier, a cosecant, a
 "distance between bends", a gain, or any formula at all for offsets.** The taught method is a scale
@@ -285,6 +303,153 @@ A web search for "BPEC offset multiplier cosecant" returned a generated summary 
 cosecant. The summary inferred it from co-occurrence in a result list. **This is exactly the failure
 mode that produced #4's fabricated provenance** — a plausible sentence, assembled from adjacency,
 that no primary document supports. Recorded here as a caution, not as evidence.
+
+---
+
+## 4A. The UK trade convention — it exists, and it is transposed [S][D]
+
+**Added on review.** The repo owner supplied a transcript of a UK plumber's pipe-bending
+masterclass, demonstrating on a **Monument** bender in **copper/MLCP**. It answers three of this
+ticket's questions from inside the owner's own tradition, and overturns §4's original headline.
+
+**Provenance, stated honestly:** a transcript supplied by the repo owner. The channel
+self-identifies as *"MM plumber"*; **I have not retrieved the video and do not have its URL.**
+Treat it as a **medium-trust trade source** — evidence of what a working UK plumber teaches, not an
+awarding body's specification. Given #4's fabricated-video incident, this distinction is not
+pedantry: **the URL should be recorded by the owner before this is cited further.**
+
+### It teaches a multiplier method — so the convention exists
+
+> "there is a nice simple formula that we use to calculate this right every single time… if you want
+> to bend at 30° you need to times your distance… by **1.2** … if you want to bend a 45 we times
+> that Distance by **1.4** … and if you want to do 60° then you need to times that set Distance by
+> **two**"
+
+The distance is explicitly **centre-to-centre** (*"Center of here to center of here"*), and **both
+marks are made on the straight pipe before any bending**:
+
+> "Mark our first Mark let's just say here and then what you want to do is Mark your **112 after
+> it**"
+
+**This is precisely the case §3 predicted would be wrong by one gain** — the trade formula marked on
+straight pipe as a mark gap. §2's conclusion said the published methods "never do that." **This one
+does.**
+
+### The multipliers are transposed [D]
+
+| angle | video | `1/sin θ` | |
+| --- | --- | --- | --- |
+| 30° | **1.2** | **2.000** | ✗ |
+| 45° | **1.4** | **1.414** | ✓ |
+| 60° | **2** | **1.155** | ✗ |
+
+The video's numbers are the standard trade table's numbers — `2` is exact for 30°, `1.2` is the
+usual rounding of 1.1547 for 60° — **assigned to the wrong angles.** 30° and 60° are swapped. This
+is a memorisation transposition, not a rival convention.
+
+**The corrected table** — what the multipliers should be:
+
+| angle | multiplier `1/sin θ` | trade rounding |
+| --- | --- | --- |
+| 30° | 2.0000 | **2.0** |
+| 45° | 1.4142 | **1.4** |
+| 60° | 1.1547 | **1.2** |
+
+#### Why it is a transposition and not a different angle convention [D]
+
+The one reading that would rescue the video is a **complementary** angle convention (his "30°"
+meaning a 60° deviation), under which his multipliers would be correct. **His own full cross refutes
+it**, with no appeal to outside sources:
+
+> "bend the first Bend at **60°**… and then… bend both sets at **30°**"
+
+A full cross must leave the pipe **parallel** to where it started, so the turns must cancel:
+
+| reading | sum of turns | result |
+| --- | --- | --- |
+| marks are **deviation** angles | `60 − 30 − 30` = **0** | parallel ✓ |
+| marks are **complements** | `30 − 60 − 60` = **−90** | pipe ends 90° off ✗ |
+
+The 90° mark settles it a second time: it produces a right angle, which only a deviation reading
+allows. **The bender's marks are deviation angles**, so the multiplier is `1/sin θ`, and `1.2` at
+30° is not defensible under any reading.
+
+Physically the same point, without algebra: a *shallow* set needs its marks *further* apart. The
+video has it backwards.
+
+**What it costs**, for a wanted 80mm set on 15mm copper (`R_cl` = 62.5):
+
+| | mark gap used | set achieved | error |
+| --- | --- | --- | --- |
+| 30° × **1.2** (video) | 96.0 | **48.4** | **−31.6mm** |
+| 30° × 2.0 (correct) | 160.0 | 80.4 | +0.4mm |
+| 45° × **1.4** (video) | 112.0 | 81.1 | **+1.1mm** ✓ |
+| 60° × **2** (video) | 160.0 | **144.4** | **+64.4mm** |
+| 60° × 1.155 (correct) | 92.4 | 85.8 | +5.8mm |
+
+**The demo is at 45° — the fixed point of the swap, and the only angle at which the error is
+invisible.** He measures the result and it is right (*"we just double check that this is 80"*),
+which is exactly what one would predict.
+
+### Why the rounding hides the gain at 45° [D]
+
+At 45°, the video's method lands **+1.1mm** from the requested set — inside BPEC's own ±2mm. That is
+not luck:
+
+| | value |
+| --- | --- |
+| exact vertex distance, `80 × 1.4142` | 113.14 |
+| **correct mark gap**, `R·θ + m` | **110.45** |
+| gain (the §1 discrepancy) | 2.69 |
+| video's `80 × 1.4` | **112.00** |
+
+**Rounding 1.4142 → 1.4 cancels ~42% of the gain**, and the remainder falls inside the tolerance.
+So the trade formula survives contact with reality at 45° **because two errors partially cancel** —
+one from rounding the multiplier down, one from ignoring the gain. This is the mechanism §3
+hypothesised ("the setback step silently absorbs it") found in a different place than expected: not
+in the sequencing, but in the rounding.
+
+### It confirms the flip, and the 360° mark [S]
+
+**Q5 is answered by a UK source.** The pipe *is* turned over:
+
+> "once the first Bend's done **flip them over** and Mark just here and then Square them up"
+
+and the 360° mark is taught for exactly that reason — the same convention Swagelok gives, arrived at
+independently:
+
+> "go ahead and Mark all around your pipes **CU you will be flip flopping it about**"
+
+### It sources the 70mm [S]
+
+For the 90° bend, from a mark at the corner:
+
+> "you want to mark the center Mark of the pipe location and then you go ahead and you **measure 70
+> mm back from this Mark**… and you want to mark all the way around the pipe"
+
+**This is #4's 70mm, and #4 recorded it as an unsourced owner-supplied figure.** At 90°,
+`setback = R_outside × tan 45° = R_outside`, so 70mm back from the vertex ⟹ `R_outside` = 70mm —
+consistent with #4's calibration. *(The irony is worth recording: the citation #4 had to strip as
+fabricated was a video. The real video says 70.)*
+
+### ⚠️ But the mark references the **bender**, not the geometry — a third convention
+
+Both the 70mm mark and the offset marks are aligned to a **physical feature of the Monument bender**:
+
+> "using the monument pipe benders **this Mark here goes just after the arm**"
+> "you want to **start your marks just after the arm**"
+
+This is neither a tangent point nor a vertex — it is a **bender datum**, and §2's
+tangent-vs-vertex dichotomy does not cleanly apply to it. It matters concretely:
+
+- **70mm equals `R_outside` only if that datum sits at the tangent point.** If it does not, 70mm is a
+  datum-to-vertex distance, and #4's rule — *store `R_outside`, extrapolate `setback = R_outside ×
+  tan(θ/2)`* — **is extrapolating from a number that is not `R_outside`.** At 90° the two are
+  indistinguishable (`tan 45° = 1`), which is exactly why #4 could not catch this.
+- **"Just after the arm" is not a measurement.** It is a hand skill with an unquantified tolerance,
+  and the whole method rests on it being repeatable.
+
+**This cannot be settled by reading — it needs the bender (#17).**
 
 ---
 
@@ -393,6 +558,13 @@ is the other's inside:
 > "Use the drawing as a template to mark out the second bend, **in line the outside edge** as shown."
 > *(phrasing is verbatim from the source, including the missing preposition)*
 
+> **ANSWERED on review — see §4A. The pipe is flipped.** The UK masterclass the repo owner supplied
+> says so in as many words: *"once the first Bend's done **flip them over** and Mark just here and
+> then Square them up"* — and it teaches the 360° mark for precisely that reason: *"go ahead and
+> Mark all around your pipes **CU you will be flip flopping it about**"*. Arrived at independently
+> of Swagelok, in UK copper practice, on the owner's own bender. The paragraph below stands as the
+> record of what the *published* sources do and do not say.
+
 **[—] No source I retrieved says "turn the pipe over" or equivalent.** BPEC's second-bend wording is
 genuinely ambiguous in the extracted text, and its meaning rests on a diagram I could read only as
 extracted labels ("Outside edge of pipe 'B'"). The derivation says the two outside edges are on
@@ -400,8 +572,10 @@ opposite faces; BPEC's phrasing is *consistent* with that but does not state it.
 claim BPEC teaches the flip.** What is certain [D]: the geometry puts each bend's heel on the
 opposite face, so *something* must flip — pipe, mark, or bender direction.
 
-**Recommendation:** adopt Swagelok's model. Mark position 360° round; carry direction in a separate
-heel mark. It makes Q5 a non-question.
+**Recommendation:** Swagelok's model and UK practice agree, which is the strongest position
+available here: mark position **360° round**, and let the flip carry the direction. Both traditions
+independently reached the same convention, and the 360° mark is what makes the flip safe — it is
+why the mark survives being turned over.
 
 ---
 
@@ -536,6 +710,16 @@ this session:**
 
 **Medium trust — trade secondary, used deliberately and labelled:**
 
+- **UK pipe-bending masterclass, transcript supplied by the repo owner** (added on review). Channel
+  self-identifies as *"MM plumber"*; demonstrates on a **Monument** bender in copper/MLCP.
+  **I have not retrieved the video and have no URL for it** — it is cited from the owner's
+  transcript alone. Given #4's fabricated-video incident, **the URL should be recorded before this
+  is cited further**; until then it is the owner's testimony about a source, not a source I
+  verified. Its value: it is the **only** evidence found that a UK convention exists at all (§4A),
+  it confirms the flip and the 360° mark from inside UK practice, and it sources #4's 70mm. Its
+  multipliers are **transposed at 30° and 60°**, demonstrated within the transcript itself — so it
+  is cited as *what the trade teaches*, explicitly **not** as authority for the numbers.
+
 - [electrician2.com — *Mathematics of the Offset Bend*](http://electrician2.com/electa1/offset.html)
   (Gerald Newton, rev. 26 Jan 2006) — **raw HTML fetched and read in full this session**, not via a
   summariser. This is a *secondary* trade source, not a manufacturer document, and I am citing it as
@@ -559,10 +743,18 @@ this session:**
 
 **Could not be sourced [—]:**
 
-- Any UK source teaching an offset multiplier, cosecant, or distance-between-bends formula. **I
-  believe none exists in the BPEC tradition**, on the evidence of two BPEC documents read in full.
-- What Greenlee's "center-to-center" mark actually references.
-- Any explicit instruction, in any source, to turn the pipe over between the two bends.
+- ~~Any UK source teaching an offset multiplier, cosecant, or distance-between-bends formula.~~
+  **RESOLVED on review — and this document had it wrong.** A UK plumber's masterclass (§4A, owner-
+  supplied transcript) teaches the multiplier method explicitly. The BPEC evidence was sound but the
+  inference from it was not: **"the awarding body publishes no formula" is not "the trade uses no
+  formula."** Reading only published syllabus material could not have found this, which is the
+  methodological lesson of this ticket.
+- ~~Any explicit instruction, in any source, to turn the pipe over between the two bends.~~
+  **RESOLVED on review** — *"once the first Bend's done flip them over"* (§4A).
+- What Greenlee's "center-to-center" mark actually references. **Still unsourced.**
+- **Where the Monument bender's "just after the arm" datum sits** relative to the tangent point —
+  new, and it is now the load-bearing unknown (§4A). It decides whether #4's 70mm is `R_outside` or
+  a datum offset, and no reading will settle it (#17).
 
 ## Open questions for the Applet
 
@@ -571,9 +763,16 @@ this session:**
    right for mark-both-then-bend; `D/sin θ` is right for bend-then-measure. **The Applet cannot emit
    one number without naming the method.** Suggest: emit both, always, side by side.
 2. **Should the Applet actively recommend BPEC's drawing method over its own arithmetic below 30°?**
-   The gain there (0.32–1.08mm) is inside the ±2mm tolerance, so arithmetic buys nothing. #4 reached
-   the same conclusion for 90° bends. There is a real pattern here: **this tool's honest scope is
-   steep angles and larger pipe**, and it should say so rather than pretend universal value.
+   The gain there (0.32–1.08mm) is inside the ±2mm tolerance, so *gain correction* buys nothing. #4
+   reached the same conclusion for 90° bends.
+
+   > **Reframed on review (§4A).** The "honest scope is steep angles and larger pipe" conclusion was
+   > drawn when the gain was the only error in view. It isn't. **The multiplier in circulation is
+   > transposed at 30° and 60°** — a **31mm** error at 30° and **64mm** at 60°, against a ±2mm
+   > tolerance. That dwarfs the gain by an order of magnitude, and it is *worst* at the shallow
+   > angles where the gain argument said the tool was pointless. The Applet's business case is not
+   > "correct a 2.7mm gain the trade tolerates"; it is **"emit a multiplier that is not
+   > transposed"** — and it earns its place across the whole range, not at the edges. → #18.
 3. **Is `mark gap` even the right headline Output**, or is the setting-out **drawing** the deliverable
    (per #4's conclusion) with the numbers as annotations on it? BPEC's entire method is "the drawing
    is the template". Rendering an accurate SVG the user can print and lay pipe on may beat any number.
