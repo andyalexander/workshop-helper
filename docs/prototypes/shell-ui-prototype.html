@@ -684,6 +684,152 @@ function diagramSVG(od, rOutside, deg) {
 </svg>`;
 }
 
+/* ---------------------------------------------------------------------------
+   STEP (offset): two equal, opposite bends that shift the pipe sideways by D.
+   You give the step; it gives you where to mark.
+
+   Centreline model -- leg, arc(+th), diagonal m, arc(-th), leg:
+     D = 2*rCl*(1 - cos th) + m*sin th
+   so the diagonal is m = (D - 2*rCl*(1-cos th)) / sin th, and there is a
+   MINIMUM step: with m = 0 the two arcs run straight into each other, giving
+   D_min = 2*rCl*(1-cos th). Below that the step is impossible at that angle --
+   you need a shallower one. (15mm at 45 deg cannot step less than 36.6mm.)
+
+   Marks sit at the two tangent points, i.e. where each bend starts -- the same
+   convention #4 pinned for a single bend. Between them lies arc1 + the
+   diagonal, so the material distance is rCl*th + m. NOTE this is NOT the folk
+   formula D/sin(th): that measures vertex-to-vertex and overstates the mark gap
+   by one bend's gain (2*rCl*tan(th/2) - rCl*th) -- 2.7mm at 45 deg in 15mm.
+   The geometry is verified; the *marking convention* is derived, not sourced.
+   See the open question on the ticket before this reaches the spec.
+   --------------------------------------------------------------------------- */
+function offsetGeom(od, rOutside, deg, D) {
+  const h = od / 2, rCl = rOutside - h, th = rad(deg);
+  const s = Math.sin(th), c = Math.cos(th);
+  const dMin = 2 * rCl * (1 - c);
+  const m = (D - dMin) / s;
+  return {
+    rCl, th, s, c, dMin, m,
+    ok: m >= 0,
+    mark: rCl * th + m,                                  // material, tangent to tangent
+    folk: D / s,                                         // vertex to vertex
+    gain: 2 * rCl * Math.tan(th / 2) - rCl * th,
+    setb: rOutside * Math.tan(th / 2),
+  };
+}
+
+/** The finished step, plus a straight-pipe strip showing where the marks go. */
+function offsetSVG(od, rOutside, deg, D) {
+  const h = od / 2;
+  const g = offsetGeom(od, rOutside, deg, D);
+  if (!g.ok) return null;
+  const { rCl, s, c, m } = g;
+
+  const T1 = { x: 0, y: 0 };
+  const T2 = { x: rCl * s, y: -rCl * (1 - c) };
+  const T3 = { x: T2.x + m * c, y: T2.y - m * s };
+  const ctr2 = { x: T3.x + rCl * s, y: T3.y + rCl * c };
+  const T4 = { x: ctr2.x, y: ctr2.y - rCl };
+  const lead = 66, tail = 66;
+  const P0 = { x: -lead, y: 0 };
+  const P5 = { x: T4.x + tail, y: T4.y };
+
+  const f = n => n.toFixed(2);
+  const shape = `M ${f(P0.x)} ${f(P0.y)} L ${f(T1.x)} ${f(T1.y)} ` +
+                `A ${f(rCl)} ${f(rCl)} 0 0 0 ${f(T2.x)} ${f(T2.y)} ` +
+                `L ${f(T3.x)} ${f(T3.y)} ` +
+                `A ${f(rCl)} ${f(rCl)} 0 0 1 ${f(T4.x)} ${f(T4.y)} ` +
+                `L ${f(P5.x)} ${f(P5.y)}`;
+
+  const xd = P5.x + 16;                       // step dimension line
+  const yTop = T4.y;
+
+  /* marking strip: the pipe as it is now, flat, with the two marks on it */
+  const yStrip = h + 54;
+  const xm1 = P0.x + lead, xm2 = xm1 + g.mark;
+  const xs = P0.x, xe = xm2 + tail;
+  const yDim = yStrip + h + 24;
+
+  const x0 = Math.min(P0.x, xs) - h - 16;
+  const x1 = Math.max(xd + 54, xe + h + 4);
+  const y0 = yTop - h - 20;
+  const y1 = yDim + 30;
+  const w = x1 - x0, hh = y1 - y0;
+  const fs = w / 40, fsB = w / 33, sw = w / 460;
+  const MONO = 'ui-monospace, monospace';
+  const narrow = g.mark < 62;
+
+  return `
+<svg viewBox="${f(x0)} ${f(y0)} ${f(w)} ${f(hh)}" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="Step of ${D}mm using two ${deg} degree bends; marks ${g.mark.toFixed(1)}mm apart">
+  <defs>
+    <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+            orient="auto-start-reverse">
+      <path d="M0,1.5 L9,5 L0,8.5 z" fill="#b4531f"/>
+    </marker>
+  </defs>
+
+  <!-- the finished step -->
+  <path d="${shape}" fill="none" stroke="#c3ced4" stroke-width="${od}"/>
+  <path d="${shape}" fill="none" stroke="#41525b" stroke-width="${f(sw * 0.9)}"
+        stroke-dasharray="${f(sw * 7)} ${f(sw * 4)}" stroke-opacity=".5"/>
+
+  <!-- original axis, and the step dimension -->
+  <g stroke="#a89e92" stroke-width="${f(sw * 0.85)}" stroke-dasharray="${f(sw * 3)} ${f(sw * 3)}" fill="none">
+    <path d="M ${f(T1.x)} 0 L ${f(xd + 8)} 0"/>
+    <path d="M ${f(P5.x)} ${f(yTop)} L ${f(xd + 8)} ${f(yTop)}"/>
+  </g>
+  <path d="M ${f(xd)} 0 L ${f(xd)} ${f(yTop)}" stroke="#b4531f" stroke-width="${f(sw)}"
+        fill="none" marker-start="url(#ar2)" marker-end="url(#ar2)"/>
+  <text x="${f(xd + 7)}" y="${f(yTop / 2 + fsB * 0.34)}" font-size="${f(fsB)}" font-weight="600"
+        fill="#b4531f" font-family="${MONO}">${D.toFixed(1)}mm</text>
+  <text x="${f(xd + 7)}" y="${f(yTop / 2 + fsB * 1.5)}" font-size="${f(fs * 0.85)}"
+        fill="#8a7f72" font-family="${MONO}">step</text>
+
+  <!-- angle at the first bend -->
+  <path d="M ${f(Math.min(38, rCl * 0.55))} 0 A ${f(Math.min(38, rCl * 0.55))} ${f(Math.min(38, rCl * 0.55))} 0 0 0 ${f(Math.min(38, rCl * 0.55) * c)} ${f(-Math.min(38, rCl * 0.55) * s)}"
+        fill="none" stroke="#b4531f" stroke-width="${f(sw)}" stroke-opacity=".55"/>
+  <text x="${f(Math.min(38, rCl * 0.55) + fs * 0.4)}" y="${f(-fs * 0.4)}" font-size="${f(fs)}"
+        fill="#b4531f" font-family="${MONO}">${deg}&#176;</text>
+
+  <!-- The two marks, on the bent pipe. They sit on OPPOSITE faces: the bends are
+       equal and opposite, so each one's outside edge is the other's inside.
+       Bend 1 turns up, so its outside is below; bend 2 turns down, so its
+       outside is the far side of the diagonal. In the hand you flip the pipe. -->
+  <circle cx="${f(T1.x)}" cy="${f(T1.y + h)}" r="${f(sw * 2.8)}" fill="#b4531f"/>
+  <circle cx="${f(T3.x - h * s)}" cy="${f(T3.y - h * c)}" r="${f(sw * 2.8)}" fill="#b4531f"/>
+
+  <!-- ============ setting out: the pipe flat, before you bend it ========== -->
+  <path d="M ${f(xs)} ${f(yStrip)} L ${f(xe)} ${f(yStrip)}" stroke="#dfe5e8" stroke-width="${od}"/>
+  <path d="M ${f(xs)} ${f(yStrip)} L ${f(xe)} ${f(yStrip)}" stroke="#41525b"
+        stroke-width="${f(sw * 0.9)}" stroke-dasharray="${f(sw * 7)} ${f(sw * 4)}" stroke-opacity=".35"/>
+  <g stroke="#b4531f" stroke-width="${f(sw * 1.5)}">
+    <path d="M ${f(xm1)} ${f(yStrip - h)} L ${f(xm1)} ${f(yStrip + h)}"/>
+    <path d="M ${f(xm2)} ${f(yStrip - h)} L ${f(xm2)} ${f(yStrip + h)}"/>
+  </g>
+  <text x="${f(xm1)}" y="${f(yStrip - h - fs * 0.5)}" text-anchor="middle" font-size="${f(fs * 0.85)}"
+        fill="#8a7f72" font-family="${MONO}">mark 1</text>
+  <text x="${f(xm2)}" y="${f(yStrip - h - fs * 0.5)}" text-anchor="middle" font-size="${f(fs * 0.85)}"
+        fill="#8a7f72" font-family="${MONO}">mark 2</text>
+
+  <g stroke="#b4531f" stroke-width="${f(sw)}" fill="none">
+    <path d="M ${f(xm1)} ${f(yStrip + h)} L ${f(xm1)} ${f(yDim + 6)}" stroke-dasharray="${f(sw * 3)} ${f(sw * 3)}" stroke-opacity=".6"/>
+    <path d="M ${f(xm2)} ${f(yStrip + h)} L ${f(xm2)} ${f(yDim + 6)}" stroke-dasharray="${f(sw * 3)} ${f(sw * 3)}" stroke-opacity=".6"/>
+    ${narrow
+      ? `<path d="M ${f(xm1 - 26)} ${f(yDim)} L ${f(xm1)} ${f(yDim)}" marker-end="url(#ar2)"/>
+         <path d="M ${f(xm2 + 26)} ${f(yDim)} L ${f(xm2)} ${f(yDim)}" marker-end="url(#ar2)"/>`
+      : `<path d="M ${f(xm1)} ${f(yDim)} L ${f(xm2)} ${f(yDim)}" marker-start="url(#ar2)" marker-end="url(#ar2)"/>`}
+  </g>
+  ${narrow ? '' : `<rect x="${f((xm1 + xm2) / 2 - fsB * 2.1)}" y="${f(yDim - fsB * 0.72)}"
+        width="${f(fsB * 4.2)}" height="${f(fsB * 1.05)}" fill="#fff"/>`}
+  <text x="${f(narrow ? xm1 - 32 : (xm1 + xm2) / 2)}" y="${f(yDim + fsB * 0.34)}"
+        text-anchor="${narrow ? 'end' : 'middle'}" font-size="${f(fsB)}" font-weight="600"
+        fill="#b4531f" font-family="${MONO}">${g.mark.toFixed(1)}mm</text>
+  <text x="${f(xs)}" y="${f(yStrip - h - fs * 2.1)}" font-size="${f(fs * 0.85)}"
+        fill="#8a7f72" font-family="${MONO}">flat, before bending &#8595;</text>
+</svg>`;
+}
+
 /* ===========================================================================
    STATE
    =========================================================================== */
@@ -704,7 +850,7 @@ const state = {
   tags: new Set(),
   roots: new Set(),          // empty == all (variant B only)
   // pipe-bender inputs, shared so the calculator keeps its value across variants
-  calc: { size: '15', angle: 90 },
+  calc: { mode: 'bend', size: '15', angle: 90, step: 100 },
   saved: false,
 };
 
@@ -747,17 +893,78 @@ function toggleTag(t) { state.tags.has(t) ? state.tags.delete(t) : state.tags.ad
    APPLET PAGE CONTENT — shared inner content, per-variant framing.
    =========================================================================== */
 
+/* Two modes, different inputs, different Outputs, one Applet. Note what this
+   does to ADR-0004: the Manifest's input schema is no longer a flat list --
+   `step` only exists in step mode, and `angle` means something different in
+   each. See the mode question raised on the ticket. */
 function calcBody() {
   const b = BENDERS[state.calc.size];
   const deg = state.calc.angle;
-  const S = setback(b.rOutside, deg);
+  const isStep = state.calc.mode === 'step';
   const rCl = b.rOutside - b.od / 2;
+  const S = setback(b.rOutside, deg);
+  const g = isStep ? offsetGeom(b.od, b.rOutside, deg, state.calc.step) : null;
+
+  const outs = isStep
+    ? (g.ok ? `
+        <div class="out primary">
+          <span class="lb">Distance between marks<br><span style="font-size:11px;opacity:.7">along the pipe, flat, before bending</span></span>
+          <span class="vl">${g.mark.toFixed(1)}</span><span class="un">mm</span>
+        </div>
+        <div class="out">
+          <span class="lb">Setback, each bend</span>
+          <span class="vl" style="font-size:17px">${g.setb.toFixed(1)}</span><span class="un">mm</span>
+        </div>
+        <div class="out">
+          <span class="lb">Smallest step at ${deg}&#176;</span>
+          <span class="vl" style="font-size:17px">${g.dMin.toFixed(1)}</span><span class="un">mm</span>
+        </div>`
+      : `<div style="padding:6px 0 2px">
+          <div style="font-size:15px;font-weight:600;color:var(--accent);margin-bottom:6px">
+            Can&rsquo;t step ${state.calc.step}mm at ${deg}&#176;.</div>
+          <div style="font-size:13.5px;opacity:.75;line-height:1.6">
+            The two bends would run into each other. At ${deg}&#176; the smallest step this
+            bender can make is <b>${g.dMin.toFixed(1)}mm</b>. Use a shallower angle
+            &mdash; ${(() => {
+              for (const t of [30, 22.5, 15, 10]) {
+                const q = offsetGeom(b.od, b.rOutside, t, state.calc.step);
+                if (q.ok) return `<b>${t}&#176;</b> would do it (marks ${q.mark.toFixed(1)}mm apart)`;
+              }
+              return 'even 10&#176; is not shallow enough';
+            })()}.
+          </div>
+        </div>`)
+    : `
+      <div class="out primary">
+        <span class="lb">Setback<br><span style="font-size:11px;opacity:.7">from vertex, along outside edge</span></span>
+        <span class="vl">${S.toFixed(1)}</span><span class="un">mm</span>
+      </div>
+      <div class="out">
+        <span class="lb">R<sub>outside</sub></span>
+        <span class="vl" style="font-size:17px">${b.rOutside.toFixed(1)}</span><span class="un">mm</span>
+      </div>
+      <div class="out">
+        <span class="lb">R<sub>centreline</sub></span>
+        <span class="vl" style="font-size:17px">${rCl.toFixed(1)}</span><span class="un">mm</span>
+      </div>`;
+
+  const svg = isStep ? offsetSVG(b.od, b.rOutside, deg, state.calc.step)
+                     : diagramSVG(b.od, b.rOutside, deg);
 
   return `
   <div class="ap-grid">
     <div>
       <div class="panel">
         <h3>Inputs</h3>
+        <div class="fld">
+          <label for="i-mode">What are you setting out?</label>
+          <div class="ctl">
+            <select id="i-mode">
+              <option value="bend" ${!isStep ? 'selected' : ''}>A single bend</option>
+              <option value="step" ${isStep ? 'selected' : ''}>A step (offset)</option>
+            </select>
+          </div>
+        </div>
         <div class="fld">
           <label for="i-size">Pipe size</label>
           <div class="ctl">
@@ -768,13 +975,25 @@ function calcBody() {
           </div>
           <div class="help">${esc(b.note)}</div>
         </div>
+        ${isStep ? `
         <div class="fld">
-          <label for="i-angle">Bend angle</label>
+          <label for="i-step">How far to step</label>
           <div class="ctl">
-            <input id="i-angle" type="number" min="10" max="90" step="1" value="${deg}">
+            <input id="i-step" type="number" min="1" max="400" step="1" value="${state.calc.step}">
+            <span class="unit">mm</span>
+          </div>
+          <div class="help">Centre to centre &mdash; which for a step is also edge to edge,
+          since both legs are the same pipe. No reference surface to pin.</div>
+        </div>` : ''}
+        <div class="fld">
+          <label for="i-angle">${isStep ? 'Angle of each bend' : 'Bend angle'}</label>
+          <div class="ctl">
+            <input id="i-angle" type="number" min="10" max="90" step="${isStep ? '2.5' : '1'}" value="${deg}">
             <span class="unit">&#176;</span>
           </div>
-          <div class="help">A 90&#176; bend needs no calculation &mdash; it is the off-angles this earns its keep on.</div>
+          <div class="help">${isStep
+            ? 'Both bends are equal and opposite. Shallower angle &rArr; smaller steps possible, longer diagonal.'
+            : 'A 90&#176; bend needs no calculation &mdash; it is the off-angles this earns its keep on.'}</div>
         </div>
         <div class="fld">
           <label for="i-rout">Bender radius (R<sub>outside</sub>)</label>
@@ -790,22 +1009,16 @@ function calcBody() {
     <div>
       <div class="panel">
         <h3>Result</h3>
-        <div class="outs">
-          <div class="out primary">
-            <span class="lb">Setback<br><span style="font-size:11px;opacity:.7">from vertex, along outside edge</span></span>
-            <span class="vl">${S.toFixed(1)}</span><span class="un">mm</span>
-          </div>
-          <div class="out">
-            <span class="lb">R<sub>outside</sub></span>
-            <span class="vl" style="font-size:17px">${b.rOutside.toFixed(1)}</span><span class="un">mm</span>
-          </div>
-          <div class="out">
-            <span class="lb">R<sub>centreline</sub></span>
-            <span class="vl" style="font-size:17px">${rCl.toFixed(1)}</span><span class="un">mm</span>
-          </div>
-        </div>
-        <div class="fig">${diagramSVG(b.od, b.rOutside, deg)}</div>
-        <div class="cap">Graphic Output &mdash; an SVG string the Applet returns; the Host just embeds it.</div>
+        <div class="outs">${outs}</div>
+        ${svg ? `<div class="fig">${svg}</div>
+        <div class="cap">Graphic Output &mdash; an SVG string the Applet returns; the Host just embeds it.</div>` : ''}
+        ${isStep && g.ok ? `<div class="proto-note" style="margin-top:10px;border-left:2px solid var(--accent);padding-left:10px">
+          <b>Unverified:</b> the geometry is proven, but the marking convention is derived, not
+          sourced. Marks are taken at the tangent points, so the gap is
+          <code>rCl&#183;&#952; + m</code> = ${g.mark.toFixed(1)}mm &mdash; <b>${g.gain.toFixed(1)}mm less</b>
+          than the usual <code>step/sin&#952;</code> = ${g.folk.toFixed(1)}mm, which measures
+          vertex-to-vertex and ignores the bend&rsquo;s gain. Needs a research ticket before it
+          reaches the spec.</div>` : ''}
       </div>
     </div>
   </div>`;
@@ -1232,19 +1445,31 @@ function renderC() {
 /* ---- calculator wiring (shared; the round-trip is faked in-memory) ------- */
 function wireCalc() {
   const size = document.getElementById('i-size');
+  if (!size) return;
+  const mode = document.getElementById('i-mode');
   const ang  = document.getElementById('i-angle');
   const rout = document.getElementById('i-rout');
-  if (!size) return;
+  const step = document.getElementById('i-step');
+  const keep = id => { const n = document.getElementById(id); if (n) { n.focus(); const v = n.value; n.value = ''; n.value = v; } };
+
+  mode.onchange = e => {
+    state.calc.mode = e.target.value;
+    // 90deg is the sensible default for a single bend and a silly one for a step
+    state.calc.angle = e.target.value === 'step' ? 45 : 90;
+    state.saved = false; render();
+  };
   size.onchange = e => { state.calc.size = e.target.value; state.saved = false; render(); };
   ang.oninput = e => {
     const v = Math.max(10, Math.min(90, Number(e.target.value) || 10));
-    state.calc.angle = v; state.saved = false; render();
-    const n = document.getElementById('i-angle'); if (n) n.focus();
+    state.calc.angle = v; state.saved = false; render(); keep('i-angle');
   };
   rout.oninput = e => {
     const v = Number(e.target.value);
-    if (v > 0) { BENDERS[state.calc.size].rOutside = v; state.saved = false; render();
-      const n = document.getElementById('i-rout'); if (n) n.focus(); }
+    if (v > 0) { BENDERS[state.calc.size].rOutside = v; state.saved = false; render(); keep('i-rout'); }
+  };
+  if (step) step.oninput = e => {
+    const v = Math.max(1, Math.min(400, Number(e.target.value) || 1));
+    state.calc.step = v; state.saved = false; render(); keep('i-step');
   };
 }
 
