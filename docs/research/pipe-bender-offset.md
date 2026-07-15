@@ -312,11 +312,16 @@ that no primary document supports. Recorded here as a caution, not as evidence.
 masterclass, demonstrating on a **Monument** bender in **copper/MLCP**. It answers three of this
 ticket's questions from inside the owner's own tradition, and overturns §4's original headline.
 
-**Provenance, stated honestly:** a transcript supplied by the repo owner. The channel
-self-identifies as *"MM plumber"*; **I have not retrieved the video and do not have its URL.**
-Treat it as a **medium-trust trade source** — evidence of what a working UK plumber teaches, not an
-awarding body's specification. Given #4's fabricated-video incident, this distinction is not
-pedantry: **the URL should be recorded by the owner before this is cited further.**
+**Provenance — URL supplied and verified [S]:**
+[*Pipe bending master class!*](https://www.youtube.com/watch?v=OiBUU_QxD3A) — channel **mmplumber**,
+uploaded 2025-03-28, 629s (10:29). I fetched the page this session and confirmed the title, channel,
+and duration; the owner's transcript runs to 10:28, matching the stated length. **The video itself I
+have not watched — the spoken content is quoted from the owner's transcript**, and the description
+below is quoted from the page I retrieved.
+
+Treat it as a **medium-trust trade source**: evidence of what a working UK plumber teaches, not an
+awarding body's specification — and, per §4A's findings, **explicitly not authority for the
+numbers**.
 
 ### It teaches a multiplier method — so the convention exists
 
@@ -432,7 +437,7 @@ For the 90° bend, from a mark at the corner:
 consistent with #4's calibration. *(The irony is worth recording: the citation #4 had to strip as
 fabricated was a video. The real video says 70.)*
 
-### ⚠️ But the mark references the **bender**, not the geometry — a third convention
+### The mark references the **bender**, not the geometry — a third convention
 
 Both the 70mm mark and the offset marks are aligned to a **physical feature of the Monument bender**:
 
@@ -440,16 +445,36 @@ Both the 70mm mark and the offset marks are aligned to a **physical feature of t
 > "you want to **start your marks just after the arm**"
 
 This is neither a tangent point nor a vertex — it is a **bender datum**, and §2's
-tangent-vs-vertex dichotomy does not cleanly apply to it. It matters concretely:
+tangent-vs-vertex dichotomy does not cleanly apply to it. Two consequences:
 
 - **70mm equals `R_outside` only if that datum sits at the tangent point.** If it does not, 70mm is a
   datum-to-vertex distance, and #4's rule — *store `R_outside`, extrapolate `setback = R_outside ×
-  tan(θ/2)`* — **is extrapolating from a number that is not `R_outside`.** At 90° the two are
-  indistinguishable (`tan 45° = 1`), which is exactly why #4 could not catch this.
+  tan(θ/2)`* — would be extrapolating from a number that is not `R_outside`. At 90° the two are
+  indistinguishable (`tan 45° = 1`), which is exactly why #4 could not catch it.
 - **"Just after the arm" is not a measurement.** It is a hand skill with an unquantified tolerance,
-  and the whole method rests on it being repeatable.
+  and the method rests on it being repeatable.
 
-**This cannot be settled by reading — it needs the bender (#17).**
+#### The author's own description argues against the pessimistic reading [S]
+
+Retrieved from the video page this session:
+
+> "The 70 mm measurement **does also work on your standard bender, not just the Monument one**."
+
+That is evidence the 70mm is **geometric, not a Monument artifact**. A traditional scissor bender has
+no "arm" to align to, and its frame geometry differs — so a datum-to-vertex distance would not be
+expected to transfer between the two. A **former radius** would. This **supports #4's reading** that
+`R_outside` = 70mm is a real radius, and correspondingly supports extrapolating
+`setback = R_outside × tan(θ/2)` to other angles.
+
+Stated at the strength it deserves: this is **the author's claim, not a measurement**, and it is the
+same author whose multipliers are transposed (§4A) — so it is corroboration, not proof. But it is
+the only cross-bender evidence in existence, it points the opposite way to the concern above, and
+**intellectual honesty requires recording that the objection was raised here and then partly
+answered by the source itself.**
+
+**Still not settled by reading — the 45° check in #17 remains the only test that can separate the
+two**, since every existing check (the video, #4, the owner) was made at 90°, where the readings
+agree by construction.
 
 ---
 
@@ -710,15 +735,19 @@ this session:**
 
 **Medium trust — trade secondary, used deliberately and labelled:**
 
-- **UK pipe-bending masterclass, transcript supplied by the repo owner** (added on review). Channel
-  self-identifies as *"MM plumber"*; demonstrates on a **Monument** bender in copper/MLCP.
-  **I have not retrieved the video and have no URL for it** — it is cited from the owner's
-  transcript alone. Given #4's fabricated-video incident, **the URL should be recorded before this
-  is cited further**; until then it is the owner's testimony about a source, not a source I
-  verified. Its value: it is the **only** evidence found that a UK convention exists at all (§4A),
-  it confirms the flip and the 360° mark from inside UK practice, and it sources #4's 70mm. Its
-  multipliers are **transposed at 30° and 60°**, demonstrated within the transcript itself — so it
-  is cited as *what the trade teaches*, explicitly **not** as authority for the numbers.
+- [**mmplumber, *Pipe bending master class!***](https://www.youtube.com/watch?v=OiBUU_QxD3A)
+  (uploaded 2025-03-28, 10:29) — added on review; **URL supplied by the repo owner and verified this
+  session**. I fetched the page and confirmed title, channel and duration (629s vs the transcript's
+  10:28 final timestamp); the **description is quoted from that page**. **The video itself I have not
+  watched** — spoken content is quoted from the owner's transcript, so that portion is *the owner's
+  testimony about a source* rather than one I verified frame by frame. Demonstrates on a **Monument**
+  lever bender in copper/MLCP.
+
+  Its value: the **only** evidence found that a UK offset convention exists at all (§4A); confirms
+  the flip and the 360° mark from inside UK practice; sources #4's 70mm; and its description gives
+  the only cross-bender evidence on the 70mm. Its multipliers are **transposed at 30° and 60°**,
+  provable from the transcript's own full cross — so it is cited as *what the trade teaches*,
+  explicitly **not** as authority for the numbers.
 
 - [electrician2.com — *Mathematics of the Offset Bend*](http://electrician2.com/electa1/offset.html)
   (Gerald Newton, rev. 26 Jan 2006) — **raw HTML fetched and read in full this session**, not via a
@@ -753,8 +782,11 @@ this session:**
   **RESOLVED on review** — *"once the first Bend's done flip them over"* (§4A).
 - What Greenlee's "center-to-center" mark actually references. **Still unsourced.**
 - **Where the Monument bender's "just after the arm" datum sits** relative to the tangent point —
-  new, and it is now the load-bearing unknown (§4A). It decides whether #4's 70mm is `R_outside` or
-  a datum offset, and no reading will settle it (#17).
+  new, and the load-bearing unknown (§4A). It decides whether #4's 70mm is `R_outside` or a datum
+  offset. **Partially answered by the author's description** — *"The 70 mm measurement does also work
+  on your standard bender"* [S], which argues the 70mm is a former radius rather than a Monument
+  artifact — but that is his claim, not a measurement, and every check ever made was at 90°, where
+  the two readings agree by construction. **Only #17's 45° test can separate them.**
 
 ## Open questions for the Applet
 
