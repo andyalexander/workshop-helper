@@ -21,6 +21,10 @@ The declaration an Applet makes about itself to the Host — its Applet type, na
 **Root**:
 A directory the Host scans for Applets. An Applet belongs to exactly one Root, which is its provenance — the built-in set, the user's own, or a collection obtained from someone else.
 
+**Input**:
+A single named value a calculator Applet needs in order to compute — declared in the Manifest, supplied by the user. The counterpart to an Output: both are named, labelled, and carry a unit.
+_Avoid_: Parameter, field, argument
+
 **Result**:
 What a calculator Applet's compute function returns: named Outputs, plus an optional table, HTML fragment, and graphic.
 
@@ -28,6 +32,10 @@ What a calculator Applet's compute function returns: named Outputs, plus an opti
 A single named value in a Result — a value with its unit and label. Outputs are structured data, which is what lets the Host format and lay them out generically.
 
 ## Workshop domain
+
+**Designation**:
+A size named from a standard series — 15mm copper, M8, BSP ½" — rather than measured. A Designation is a name, not a quantity: BSP ½" thread measures roughly 20.96mm across, so converting it is meaningless rather than merely unhelpful. Contrast a genuine measurement (a bend angle, a caliper reading), which does convert.
+_Avoid_: Size, spec — both blur the line between a name and a measured quantity.
 
 **Setback**:
 The distance from the vertex back to the start of a bend, measured along the pipe's outside edge — `setback = R_outside × tan(θ/2)`. Every trade computes this quantity; they differ only in which surface the radius is measured to, so any Output naming it must also name its reference surface.
