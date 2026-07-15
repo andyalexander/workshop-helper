@@ -27,6 +27,14 @@ What a calculator Applet's compute function returns: named Outputs, plus an opti
 **Output**:
 A single named value in a Result — a value with its unit and label. Outputs are structured data, which is what lets the Host format and lay them out generically.
 
+## Workshop domain
+
+**Setback**:
+The distance from the vertex back to the start of a bend, measured along the pipe's outside edge — `setback = R_outside × tan(θ/2)`. Every trade computes this quantity; they differ only in which surface the radius is measured to, so any Output naming it must also name its reference surface.
+_Avoid_: gain, deduct, take-up, shrink — each names a **different** quantity, not a synonym.
+
+Borrowed from US pipefitting and aerospace. UK copper plumbing has no native term for it, because its training tradition never computes the quantity — it teaches a physical square-and-scrap-pipe alignment instead. Don't let anyone "correct" it to a BPEC term; there isn't one.
+
 ## Notes on usage
 
 A stored manual or manufacturer link is not a separate concept — it's simply a `documentation` Applet whose content is a page of links/references, tagged like any other Applet.
