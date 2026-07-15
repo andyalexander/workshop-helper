@@ -49,7 +49,7 @@ to the outside edge. Every Output's label must name its reference surface.
 | --- | --- | --- |
 | `pipe_od` | **Essential** | 15 / 22 / 28 mm. Sets `OD/2`. |
 | `bend_angle` | **Essential** | Former is marked 30/45/60/90°. |
-| `bend_radius` (centreline) | **Essential** | Default `4 × OD` (BPEC). **Must be user-overridable — see below.** |
+| `bend_radius` (as `R_outside`) | **Essential** | Per-bender calibration. **15mm: 70mm (calibrated — user's own benders). 22mm: 99mm (`4 × OD` BPEC default, calculable/overridable).** See below. |
 | `wall_thickness` | **Omit** | Does not enter the geometry. Only gates *feasibility* (Monument: 0.7mm max). |
 
 `wall_thickness` is the one to leave out. It appears in the *sheet-metal* setback formula
@@ -57,12 +57,40 @@ to the outside edge. Every Output's label must name its reference surface.
 radius. For tube we already know the outside radius directly from `OD`. Including wall
 thickness would double-count.
 
-**Bend radius must be an input, not a lookup.** Monument does not publish the former radius —
-it is absent from the Screwfix listing and from Monument's own product pages. BPEC's `4 × OD`
-is a *setting-out drawing convention* ("Radius = ~4 X Diameter"), not a measurement of any
-specific tool. So: default to `4 × OD`, let the user measure their own former once and save it.
-This is a natural fit for the Manifest being "where the Host writes saved defaults back to"
-(`CONTEXT.md`) — the calculator becomes correct for *this* bender after one calibration.
+**Bend radius must be a per-bender calibration, not a lookup.** Monument does not publish the
+former radius — it is absent from the Screwfix listing and from Monument's own product pages.
+BPEC's `4 × OD` is a *setting-out drawing convention* ("Radius = ~4 X Diameter"), not a measurement
+of any specific tool. So the Manifest holds a calibration per bender, which is a natural fit for it
+being "where the Host writes saved defaults back to" (`CONTEXT.md`).
+
+### Calibrating at 90° — store `R_outside`, never a bare "setback"
+
+**The key implementation trap.** At 90°, `tan(45°) = 1`, so:
+
+```
+setback(90°) ≡ R_outside        exactly
+```
+
+This is a gift: **a single field measurement at 90° calibrates the entire angle range.** But it
+means "the setback is 70mm" is a *90°-only* statement. Storing `setback = 70` as a flat constant
+would be correct at 90° and **wrong at every other angle** — at 45° the setback is 28.99mm, not 70.
+
+So the Manifest must store the calibration as **`R_outside`** (equivalently: "setback measured at
+90°"), and *derive* setback per angle via `R_outside × tan(θ/2)`. Same number, correct semantics,
+correct at all four of the former's marked angles.
+
+**Project decision (2026-07-15):**
+
+| Bender | `R_outside` | Provenance | Implied `R_centreline` |
+| --- | --- | --- | --- |
+| **15mm** | **70 mm** | **Owner-supplied figure for their own bender (2026-07-15)** | 62.5mm = `4.17 × OD` |
+| **22mm** | 99 mm | `4 × OD` BPEC convention (default; calculable & overridable) | 88mm = `4 × OD` |
+
+The 15mm figure is a *measurement of the actual tool* and outranks the `4 × OD` convention, which
+was never a measurement of a Monument former. It implies `R_centreline = 62.5mm = 4.17 × OD` — an
+entirely plausible real former, and the resolution of the Appendix's Reading C. The 22mm bender is
+uncalibrated, so it keeps the BPEC default and exposes the calculation; calibrating it later is the
+same one-measurement procedure (bend 90°, measure setback, store as `R_outside`).
 
 **Honest caveat on scope (§4):** for a **90° bend BPEC explicitly says no drawing or
 calculation is needed** — you align a mark against a scrap pipe with a square. The Applet's
@@ -282,26 +310,50 @@ and would be the tool "computing the wrong number" in exactly the way #4 warns a
 
 All values recomputed and cross-checked. Reference surface stated for every figure.
 
-### Example 1 — 15mm copper, 90° (the primary case)
+### Example 1 — 15mm copper, CALIBRATED bender (the primary case) ⭐
+
+Uses the project's calibrated `R_outside = 70mm`. **These are the fixtures to implement against.**
+
+| | |
+| --- | --- |
+| **Inputs** | `OD = 15mm`, `R_outside = 70mm` (calibrated), `θ` per row |
+| Implied `R_centreline` | `70 − 7.5` = 62.5 mm (`4.17 × OD`) |
+
+| Bend angle | Setback = `70 × tan(θ/2)` |
+| --- | --- |
+| 30° | 18.76 mm |
+| 45° | 28.99 mm |
+| 60° | 40.41 mm |
+| **90°** | **70.00 mm** ← returns the calibration by construction |
+
+The 90° row returning exactly 70.00 is the self-consistency check: `setback(90°) ≡ R_outside`.
+The other rows are the reason not to store a bare "70" — at 45° the answer is 28.99mm.
+
+### Example 1b — 15mm from first principles, via the BPEC `4 × OD` convention
+
+**Keep this method.** It is the fallback for any bender that has never been calibrated — a new
+former, someone else's tool, a size not yet measured. The calibrated 70mm is better *for the two
+benders we own*; `4 × OD` is what you fall back on when you have nothing but the pipe size.
 
 | | |
 | --- | --- |
 | **Inputs** | `OD = 15mm`, `R_centreline = 60mm` (4 × OD, BPEC), `θ = 90°` |
-| `R_outside` | `60 + 7.5` = **67.5 mm** |
-| **Setback (outside edge)** | `67.5 × tan(45°)` = **67.50 mm** |
+| `R_outside` | `60 + 7.5` = 67.5 mm |
+| Setback (outside edge) | `67.5 × tan(45°)` = 67.50 mm |
 | Setback (centreline) | `60 × tan(45°)` = 60.00 mm |
 | Arc length (centreline) | `60 × π/2` = 94.25 mm |
 | Gain | `2 × 60 − 94.25` = 25.75 mm |
 
-_Independent cross-check:_ UK trade rule-of-thumb for 15mm is "measure back 70mm" — our 67.5mm,
-rounded up to the nearest 10mm as the trade does. ✅
+Retained to show the derivation the convention gives (67.5mm) versus the calibrated tool (70mm) —
+a **2.5mm** gap, i.e. slightly outside BPEC's own ±2mm tolerance. That gap is exactly why the
+calibration wins over the convention.
 
-### Example 2 — 15mm copper, 45°
+### Example 2 — 15mm copper, 45°, from first principles
 
 | | |
 | --- | --- |
 | **Inputs** | `OD = 15mm`, `R_centreline = 60mm`, `θ = 45°` |
-| **Setback (outside edge)** | `67.5 × tan(22.5°)` = **27.96 mm** |
+| Setback (outside edge) | `67.5 × tan(22.5°)` = 27.96 mm |
 | Setback (centreline) | `60 × tan(22.5°)` = 24.85 mm |
 | Arc length (centreline) | `60 × π/4` = 47.12 mm |
 | Gain | `2 × 24.85 − 47.12` = 2.58 mm |
@@ -341,6 +393,56 @@ tabulated 1/4 in and 5/16 in respectively. Fixture the p21/p22 *derivation*, nev
 
 ---
 
+## 7. What the Result page should show (research recommendation — an input to #9, not a settled requirement)
+
+**Recommendation: the Applet should show its working.** Not a black box that emits "70mm" — the page
+itself must carry enough method that the number can be re-derived by hand, from scratch, without
+this document, years from now, for a bender nobody has calibrated. This is a reference tool for
+workshop use; a number with no method behind it is exactly the thing that rots.
+
+This maps onto `CONTEXT.md`'s Result structure: the **HTML fragment** carries the method, the
+**Outputs** carry the values, the **graphic** carries the setting-out diagram.
+
+The page must include, verbatim enough to use standalone:
+
+**1. The formula, stated plainly**
+
+```
+R_outside = R_centreline + OD/2
+setback   = R_outside × tan(bend angle / 2)
+```
+
+**2. The `4 × OD` convention, and what it's for**
+
+> BPEC's setting-out convention is a centreline bend radius of **4 × the pipe's outside diameter**.
+> 15mm pipe → `R_centreline = 60mm`. 22mm pipe → `R_centreline = 88mm`.
+> Add half the pipe diameter to get the outside edge: `R_outside = R_centreline + OD/2`.
+> Use this when you don't have a calibrated figure for your bender.
+
+**3. The 90° shortcut, and why it works**
+
+> At 90°, `tan(45°) = 1`, so **setback at 90° = `R_outside`, exactly.**
+> That's why one measurement at 90° calibrates every other angle: bend a scrap to 90°, measure the
+> setback, and that number *is* `R_outside`. Feed it back in and every angle follows.
+
+**4. Which surface the number refers to** — outside edge (BPEC marks out to the outside edge).
+Every Output label must say so. This is the single value most likely to be misread.
+
+**5. The provenance of whichever radius was used** — calibrated (and by whom/when) vs `4 × OD`
+convention. The user must always be able to see which they're getting.
+
+**6. The worked arithmetic for the current inputs**, substituted, e.g.:
+
+> `setback = 70 × tan(45° / 2) = 70 × 0.4142 = 28.99 mm`
+
+**7. The standing caveats** — springback ~1–3° on copper, overbend slightly and check with a square
+(§5); trade tolerance ±2mm (BPEC); and for a plain 90° bend, BPEC's square-and-scrap-pipe method
+needs no arithmetic at all (§4).
+
+**Do not discard the first-principles path when the calibrated default is present.** They serve
+different jobs: the calibration is right for *these two benders*; `4 × OD` is what you fall back on
+for any bender you haven't measured. Both stay on the page.
+
 ## Sources and trust
 
 **High trust — manufacturer / awarding-body primary documentation:**
@@ -379,11 +481,65 @@ tabulated 1/4 in and 5/16 in respectively. Fixture the p21/p22 *derivation*, nev
 - Forum threads (Screwfix Community, DIYnot) and YouTube training videos appeared in searches and
   were **not** used as evidence for any claim in this document.
 
+## Appendix — the "70mm" figure (resolved; kept as a worked case in reference-surface ambiguity)
+
+The project owner's figure for their own 15mm bender is **70mm** (stated 2026-07-15). This appendix
+records what that number *implies*, because a setback quoted without its reference surface is
+ambiguous — and resolving that ambiguity is exactly what turns a bare figure into a calibration.
+
+70mm is also the figure that circulates as a trade rule-of-thumb for 15mm, alongside "100mm" for
+22mm. The 22mm rule-of-thumb agrees with this document's independently computed 99mm (§6, Example
+3). That agreement is *corroboration after the fact*, not evidence: no figure in this document was
+derived from a rule-of-thumb.
+
+**The ambiguity.** "Measure back 70mm from the centre of the bend" has at least three readings,
+and they disagree by more than the trade's own ±2mm tolerance:
+
+| Reading | Implied setback (assuming `R_centreline` = 60mm, i.e. `4 × OD`) | vs 70mm |
+| --- | --- | --- |
+| **A** — centreline vertex | 60.0 mm | **off by 10mm — contradicts** |
+| **B** — outside corner / back of bend | 67.5 mm | off by 2.5mm — consistent if the trade rounds up |
+
+| **C** — 70 is exact, and the former is not `4 × OD` | Implied former | |
+| --- | --- | --- |
+| if centreline-referenced | `R_centreline = 70mm` | `4.67 × OD` |
+| if outside-referenced | `R_outside = 70mm`, `R_centreline = 62.5mm` | `4.17 × OD` |
+
+**The two unknowns are entangled.** Reference surface and true former radius cannot be separated
+from a single number quoted without its reference surface. That is precisely the failure mode this
+Applet exists to avoid propagating — and it is why the resolution below matters more than the
+number itself.
+
+### Resolved (2026-07-15) — Reading C
+
+The project owner states **70mm** as the figure for their own 15mm bender. Taken as exact for the
+real tool, that settles **Reading C**: the former simply is not `4 × OD`. Since
+`setback(90°) ≡ R_outside`, the figure reads directly as
+`R_outside = 70mm ⇒ R_centreline = 62.5mm = 4.17 × OD` — a plausible real former, and consistent
+with the `R + OD/2` structure independently recovered from BPEC *and* Greenlee.
+
+**Provenance, stated plainly:** 70mm is the owner's own figure for the tool they own. It is not a
+manufacturer specification (Monument publishes no former radius), and it is not derived from any
+source in this document. Anyone revisiting this should treat it as owner-supplied, and re-measure
+if the bender changes.
+
+Note this **supersedes the "don't hard-code 70" caution above**, and it is worth being precise about
+why the two are not in conflict. The objection was to 70 as an *unattributed universal constant of
+unknown reference surface*. As a *per-bender calibration of `R_outside`, recorded with its reference
+surface and its provenance*, it is exactly the calibrate-and-save procedure this document
+recommends — and it outranks the `4 × OD` convention, which was never a measurement of a Monument
+former.
+
+**The caution that does survive:** store it as `R_outside`, **not** as a bare "setback = 70". Setback
+is angle-dependent; 70 is the answer only at 90°. See "Calibrating at 90°" in the Recommendation.
+
 ## Open questions for the Applet
 
 1. **What is the Monument 15mm former's actual centreline radius?** Unpublished. Needs one
    measurement from the physical tool, then saved as a Manifest default. Until then `4 × OD = 60mm`
-   is a convention, not a measurement — and the Applet should not imply otherwise.
+   is a convention, not a measurement — and the Applet should not imply otherwise. The "70mm"
+   field heuristic (see Appendix) is consistent with a true former radius anywhere in roughly
+   60–70mm depending on reference surface — measuring the tool collapses this immediately.
 2. **Does the Applet render the 90° case at all,** given BPEC says not to calculate it? Suggest it
    renders the diagram plus the square-and-scrap-pipe method note.
 3. **Should offsets/passovers be the same Applet or siblings?** They share the radius/angle inputs
