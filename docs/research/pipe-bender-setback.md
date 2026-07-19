@@ -127,10 +127,42 @@ they coincide, as geometry requires. Treat this as *suggestive rather than concl
 round number could have been quoted twice from habit — but it is a check that only passes on the new
 reading, and it comes from the offset ticket, not this one.
 
-**Still to confirm:** the 22mm reading is the owner's explicit description; the 15mm 70mm predates it
-and is assumed to have been taken the same way, by the same person on the same bench. **The 45° test
-(#17) settles both at once** and is still worth doing — it is the only measurement where the two
-readings differ enough to separate (15mm: 28.99mm centreline vs 32.10mm outside).
+**Both figures come from the same procedure — confirmed by the owner, 2026-07-19:** *"if for the 90
+degree in 15mm tube you measure back 70mm, the same process on 22mm tube would be to measure back
+110mm."* So the two rows now sit on the **same reference surface**, measured the same way, on the
+same bench. This is also what #17 found at the bench for the 15mm bender independently.
+
+### This resolves #22
+
+**[#22](https://github.com/andyalexander/workshop-helper/issues/22) — "Calibration table: 22mm is on
+the wrong reference surface (99 vs 88)"** — is resolved, though **not by answering its questions.**
+
+#22 correctly identified that the two rows sat on **two different reference surfaces**: 15mm measured
+and centreline-referenced (per #17), 22mm derived from BPEC's `4 × OD` and then *converted* to an
+outside radius (`88 + 11 = 99`) on #4's since-falsified assumption. It notes the error is 11mm at 90°,
+five times the trade tolerance, and silent.
+
+It then says the blocking problem is that **"no bender available for 22mm — this cannot be settled the
+way #17 was."** That is no longer true. The owner measured it: **110mm**.
+
+That collapses the ticket's four decisions rather than answering them:
+
+| #22's decision | Status |
+| --- | --- |
+| 1. Is BPEC's `4 × OD` a centreline radius? | **Moot for the calibration table** — no BPEC figure is used in it now. Still open for the *uncalibrated fallback* path, and still worth quoting rather than inferring. |
+| 2. Should the 22mm row become 88.0? | **No.** Neither 88 nor 99. It is **110**, measured. Both candidates were inferences from a convention that understates this former by 22mm of centreline radius. |
+| 3. Does a published figure belong in this table? | **Resolved by removal.** Both rows are now measurements off specific benders, so the table is homogeneous and #15's discriminator is satisfied. The `4 × OD` convention moves to the fallback path, where it is honestly labelled as a convention. |
+| 4. What does the field get called? | **`r_centreline`**, with the surface in the name, per #4's own rule. `r_outside` would now lie about both rows. |
+
+**The methodological point #22 makes is the one worth keeping**: *"changing 99 → 88 without settling
+(1) just swaps one inferred number for another, and this project has been burned twice on exactly
+that."* It was right to refuse the one-line fix. The resolution came from a measurement, which is the
+only thing that could have settled it — and it landed on **110**, a value neither candidate was
+close to.
+
+**Still worth doing:** the 45° check remains the cleanest ongoing validation of the whole
+`R_ref × tan(θ/2)` model, since 90° is the one angle where a reference-surface error cannot show
+(15mm at 45°: 28.99mm centreline vs 32.10mm outside).
 
 **Honest caveat on scope (§4):** for a **90° bend BPEC explicitly says no drawing or
 calculation is needed** — you align a mark against a scrap pipe with a square. The Applet's
