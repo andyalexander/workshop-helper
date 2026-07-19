@@ -10,9 +10,11 @@ This guide is the pattern to copy. The contract behind it is decided in
 [issue #12](https://github.com/andyalexander/workshop-helper/issues/12); the rules
 here follow [ADR-0004](../adr/0004-declarative-manifest-owns-input-schema.md)
 (the Manifest owns the schema, Python is pure compute),
-[ADR-0006](../adr/0006-unit-is-a-display-label.md) (`unit` is a display label), and
-the input-schema contract in
-[issue #5](https://github.com/andyalexander/workshop-helper/issues/5).
+[ADR-0006](../adr/0006-unit-is-a-display-label.md) (`unit` is a display label), the
+input-schema contract in
+[issue #5](https://github.com/andyalexander/workshop-helper/issues/5), and the
+calibration contract in
+[issue #15](https://github.com/andyalexander/workshop-helper/issues/15).
 
 ## The one thing to remember
 
@@ -63,6 +65,21 @@ label   = "Offset (step height)"
 unit    = "mm"
 min     = 0
 default = 50
+
+# --- Calibration: measured off the bender in *your* workshop, keyed by
+#     the Input that selects it. See "Calibration" below. ---
+
+[calibration]
+keyed_by = "size"
+
+[calibration.values.15mm]
+r_outside = 70.0
+
+[calibration.values.22mm]
+r_outside = 99.0
+
+[calibration.values.28mm]
+r_outside = 130.0
 
 # --- The modes: each names its Inputs and its Outputs. ---
 
@@ -116,23 +133,25 @@ to the mode active when the Applet opens (it defaults to the first one declared)
 ## The compute function
 
 `compute()` is told which mode is active and branches on it. It receives every
-Input **of the active mode**, already validated and never `None` (issue #5), and
-returns a `Result` whose named Outputs match that mode's declared Outputs.
+Input **of the active mode**, already validated and never `None` (issue #5), plus
+the resolved `calibration` for the current key, and returns a `Result` whose named
+Outputs match that mode's declared Outputs.
 
 ```python
 from workshop_utils import Result, InvalidInput
 
-# Per-installation calibration: the former radius keyed off pipe size.
-# The former *is* the radius, so the pipe size fully specifies it (issue #15).
-R_OUTSIDE = {"15mm": 70.0, "22mm": 99.0, "28mm": 130.0}
+# Reference data: universal, identical for every user, never corrected.
+# 15mm pipe is 15mm outside diameter in every workshop on earth — so this
+# stays in Python. Contrast R_outside, which is calibration (see below).
 OD = {"15mm": 15.0, "22mm": 22.0, "28mm": 28.0}
 
 
-def compute(mode: str, inputs: dict) -> Result:
+def compute(mode: str, inputs: dict, calibration: dict) -> Result:
     """Return the Result for the active mode."""
     size = inputs["size"]
     angle = inputs["angle"]
-    r_outside = R_OUTSIDE[size]
+    # Already resolved for the selected size, and guaranteed present.
+    r_outside = calibration["r_outside"]
 
     if mode == "single_bend":
         setback = r_outside * tan(radians(angle) / 2)
@@ -170,6 +189,75 @@ Rules the Host enforces around this:
 - **Never inspect `mode` for anything but branching.** It selects the calculation;
   it is not a data value to compute *with*.
 
+## Calibration
+
+**Calibration is data measured off the physical kit in the user's own workshop.**
+The bender in your garage has the former radius it has; the one in mine may differ
+by a couple of millimetres, and the way that difference shows up is a mis-cut pipe.
+
+The test for whether something is calibration is one question:
+
+> **Does the owner need to correct this for their own kit?**
+
+If yes, it goes in `[calibration]` in the Manifest, so they can fix it **without
+editing your code**. If no — if the value is the same in every workshop on earth —
+it is *reference data* and stays a plain dict in `applet.py`. In the pipe-bender,
+`r_outside` is calibration and `OD` is reference data. A thread-pitch table
+(`25.4 / TPI`) or a tap drill chart is reference data too: nobody ever needs to
+correct the pitch of M8.
+
+Do not put reference data in `[calibration]`. The section is narrow on purpose;
+widening it into "author constants" turns it into a junk drawer and removes the
+Host's ability to know what the user may override.
+
+### Keyed and unkeyed
+
+Calibration is **keyed** when the value depends on which piece of kit is selected.
+`keyed_by` names the `choice` Input that selects it — and for the bender that is
+`size`, because **the former *is* the radius**: 22mm pipe can only be bent on a
+22mm former, so choosing the pipe already fully specifies it. There is no separate
+"which bender" Input, and adding one would be a modelling error — it would let
+someone select a combination that cannot physically exist.
+
+If there is only ever one value, omit `keyed_by` and write a flat table:
+
+```toml
+[calibration]
+backlash = 0.04
+```
+
+**Exactly one key.** There is no `keyed_by = ["size", "grade"]` — a two-dimensional
+table is a lookup table, which is reference data, which belongs in Python.
+
+### What the Host checks, and what it cannot
+
+At discovery the Host verifies that `keyed_by` names an Input that exists, that it
+is a `choice`, that **the calibration keys and the choice values match exactly in
+both directions**, and that every key offers **the same field names**. Any of these
+failing is a malformed Manifest: the Applet is greyed out and cannot be opened
+(issue #8).
+
+That last rule — same fields for every key — is why `compute()` can index
+`calibration["r_outside"]` without a guard. If one former carried a field the
+others lacked, the Applet would work for whoever owns *that* bender and crash for
+everyone else, which is precisely the bug that never shows up in your own testing.
+
+**Nothing checks that your numbers are right.** The Host has no idea what
+`r_outside` means. Only a test bend does.
+
+### The user's correction, and one wart
+
+When the owner corrects a value, it is written to the Host's Overlay — **never back
+into your Manifest**. Your Applet can be updated, re-cloned or replaced and their
+correction survives; equally, they can discard the Overlay and get your values back.
+The Applet page carries a **Calibration** disclosure showing the fields for the
+currently selected key, with a reset to your value.
+
+**The wart, worth knowing:** the Overlay is per-machine. `r_outside` describes a
+lump of steel, not a computer — so someone who corrects their bender on one machine
+still has the old value on another. It surfaces as a mis-cut pipe. If your Applet's
+calibration is safety- or cost-relevant, say so near the value.
+
 ## Single-mode calculators (the common case)
 
 Most calculators do one thing. They declare no `[modes]` section at all — just a
@@ -200,6 +288,22 @@ def compute(inputs: dict) -> Result:
     ...
 ```
 
+### Your signature is whatever you declared
+
+There is one rule behind all of this: **you receive what you declared, in
+declaration order.** Both `[modes]` and `[calibration]` are optional, so there are
+four possible signatures — but you never choose between them, your Manifest does:
+
+| `[modes]` | `[calibration]` | Signature |
+|-----------|-----------------|-----------------------------------|
+| —         | —               | `compute(inputs)`                 |
+| —         | ✓               | `compute(inputs, calibration)`    |
+| ✓         | —               | `compute(mode, inputs)`           |
+| ✓         | ✓               | `compute(mode, inputs, calibration)` |
+
+If your function's signature does not match what your Manifest declares, that is a
+malformed Applet and the Host says so (issue #8) — it will not quietly adapt.
+
 Internally the Host treats this as one anonymous mode, so everything above still
 holds — a single-mode calculator is just the degenerate case with the selector
 hidden. **If in doubt, start here and add modes only when a second genuine shape
@@ -212,6 +316,14 @@ appears.**
 - [ ] Every Input declared once in `[inputs.*]`, referenced by name per mode.
 - [ ] Each mode lists its Outputs, exactly one `primary = true`.
 - [ ] `default_mode` set (or first mode is intended as the default).
-- [ ] `compute(mode, inputs)` branches on `mode`; single-mode uses `compute(inputs)`.
+- [ ] `compute()`'s signature matches what the Manifest declares — `mode` first if
+      there are modes, `calibration` last if there is calibration.
+- [ ] Every value the owner might need to correct for their own kit is in
+      `[calibration]`, not a Python constant.
+- [ ] Every value that is the same in every workshop is a Python constant, **not**
+      in `[calibration]`.
+- [ ] `keyed_by` names a `choice` Input, and the calibration keys match its choices
+      exactly — no spare formers, no missing ones.
+- [ ] Every calibration key offers the same field names.
 - [ ] Returned Output names match the active mode exactly.
 - [ ] Impossible-but-typed input raises `InvalidInput`, not a bare error.
