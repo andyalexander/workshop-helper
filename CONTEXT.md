@@ -42,7 +42,9 @@ A size named from a standard series — 15mm copper, M8, BSP ½" — rather than
 _Avoid_: Size, spec — both blur the line between a name and a measured quantity.
 
 **Setback**:
-The distance from the vertex back to the start of a bend, measured along the pipe's outside edge — `setback = R_outside × tan(θ/2)`. Every trade computes this quantity; they differ only in which surface the radius is measured to, so any Output naming it must also name its reference surface.
+The distance from the vertex back to the start of a bend — `setback = R_centreline × tan(θ/2)`, measured to the **vertex of the two centrelines**. Every trade computes this quantity; they differ only in which surface the radius is measured to, so any Output naming it must also name its reference surface.
+
+_Corrected._ This entry previously said "outside edge" with `R_outside`. That was **inference, and it was falsified at the bench** ([#17](https://github.com/andyalexander/workshop-helper/issues/17)): the owner's rule is *"measure back 70mm from where the centre line of the vertical pipe will be — forget about 'the corner'."* [#22](https://github.com/andyalexander/workshop-helper/issues/22) then found BPEC printing all three surfaces for one bend, which is how the wrong one got copied in the first place. The two readings are **indistinguishable at 90°**, the only angle anyone had ever checked.
 _Avoid_: gain, deduct, take-up, shrink — each names a **different** quantity, not a synonym.
 
 Borrowed from US pipefitting and aerospace. UK copper plumbing has no native term for it, because its training tradition never computes the quantity — it teaches a physical square-and-scrap-pipe alignment instead. Don't let anyone "correct" it to a BPEC term; there isn't one.
