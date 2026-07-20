@@ -36,6 +36,10 @@ Modes build on three ideas:
 Here is the pipe-bender, complete:
 
 ```toml
+# Top-level scalars must appear before the first table header — see
+# "The ordering rule" below. This is TOML's rule, and it fails silently.
+default_mode = "single_bend"
+
 [applet]
 type   = "calculator"
 name   = "Pipe-bender setback"
@@ -47,7 +51,7 @@ tags   = ["plumbing", "copper", "pipe-bending"]
 [inputs.size]
 kind    = "choice"
 label   = "Pipe size"
-choices = ["15mm", "22mm", "28mm"]
+choices = ["15mm", "22mm"]   # only sizes with a *measured* former (see below)
 default = "15mm"
 
 [inputs.angle]
@@ -73,25 +77,19 @@ default = 50
 keyed_by = "size"
 
 [calibration.values.15mm]
-r_outside = 70.0
+r_centreline = 70.0
 
 [calibration.values.22mm]
-r_outside = 99.0
-
-[calibration.values.28mm]
-r_outside = 130.0
+r_centreline = 110.0
 
 # --- The modes: each names its Inputs and its Outputs. ---
-
-default_mode = "single_bend"
 
 [modes.single_bend]
 label   = "Single bend"
 inputs  = ["size", "angle"]
 outputs = [
-  { name = "setback",       label = "Setback",             unit = "mm", primary = true },
-  { name = "r_outside",      label = "Radius (outside)",    unit = "mm" },
-  { name = "r_centreline",   label = "Radius (centreline)", unit = "mm" },
+  { name = "setback",      label = "Setback",             unit = "mm", primary = true },
+  { name = "r_centreline", label = "Radius (centreline)", unit = "mm" },
 ]
 
 [modes.step]
@@ -130,6 +128,24 @@ single source of truth: you cannot declare a mode and forget to add it to a
 selector, because there is no separate selector to keep in sync. Set `default_mode`
 to the mode active when the Applet opens (it defaults to the first one declared).
 
+### The ordering rule — the trap that costs an afternoon
+
+`default_mode` is a **top-level scalar**, and so is `outputs` on a single-mode
+calculator. Both must be written **before the first table header in the file**.
+
+This is TOML's own rule, not the Host's, and it fails in the worst possible way.
+Once `[calibration.values.22mm]` is opened, every bare key that follows belongs to
+*that* table — so a `default_mode` written below it parses as
+`calibration.values.22mm.default_mode`. That is **valid TOML producing no error**:
+the Host simply sees no `default_mode` and silently opens on the first mode, while
+the calibration key quietly grows a field its siblings lack, breaking the
+same-fields rule below.
+
+**You cannot see the difference by reading your own file.** The Host therefore
+rejects unrecognised keys inside `[inputs.*]`, `[modes.*]` and
+`[calibration.values.*]` as a malformed Manifest, so the mistake surfaces at
+discovery rather than at the bench.
+
 ## The compute function
 
 `compute()` is told which mode is active and branches on it. It receives every
@@ -142,8 +158,8 @@ from workshop_utils import Result, InvalidInput
 
 # Reference data: universal, identical for every user, never corrected.
 # 15mm pipe is 15mm outside diameter in every workshop on earth — so this
-# stays in Python. Contrast R_outside, which is calibration (see below).
-OD = {"15mm": 15.0, "22mm": 22.0, "28mm": 28.0}
+# stays in Python. Contrast r_centreline, which is calibration (see below).
+OD = {"15mm": 15.0, "22mm": 22.0}
 
 
 def compute(mode: str, inputs: dict, calibration: dict) -> Result:
@@ -151,21 +167,20 @@ def compute(mode: str, inputs: dict, calibration: dict) -> Result:
     size = inputs["size"]
     angle = inputs["angle"]
     # Already resolved for the selected size, and guaranteed present.
-    r_outside = calibration["r_outside"]
+    r_centreline = calibration["r_centreline"]
 
     if mode == "single_bend":
-        setback = r_outside * tan(radians(angle) / 2)
+        setback = r_centreline * tan(radians(angle) / 2)
         return Result(outputs={
             "setback": setback,
-            "r_outside": r_outside,
-            "r_centreline": r_outside - OD[size] / 2,
+            "r_centreline": r_centreline,
         })
 
     if mode == "step":
         offset = inputs["offset"]
         mark_distance = offset / sin(radians(angle))
         # A step can be geometrically impossible: refuse, don't round (issue #8).
-        min_step = ...  # smallest achievable step at this angle
+        min_step = ...  # smallest achievable step at this angle; uses OD[size]
         if offset < min_step:
             raise InvalidInput(
                 f"Offset must be at least {min_step:.0f}mm at {angle}°.",
@@ -173,7 +188,7 @@ def compute(mode: str, inputs: dict, calibration: dict) -> Result:
             )
         return Result(outputs={
             "mark_distance": mark_distance,
-            "setback_per_bend": r_outside * tan(radians(angle) / 2),
+            "setback_per_bend": r_centreline * tan(radians(angle) / 2),
             "min_step": min_step,
         })
 ```
@@ -202,7 +217,7 @@ The test for whether something is calibration is one question:
 If yes, it goes in `[calibration]` in the Manifest, so they can fix it **without
 editing your code**. If no — if the value is the same in every workshop on earth —
 it is *reference data* and stays a plain dict in `applet.py`. In the pipe-bender,
-`r_outside` is calibration and `OD` is reference data. A thread-pitch table
+`r_centreline` is calibration and `OD` is reference data. A thread-pitch table
 (`25.4 / TPI`) or a tap drill chart is reference data too: nobody ever needs to
 correct the pitch of M8.
 
@@ -237,13 +252,23 @@ both directions**, and that every key offers **the same field names**. Any of th
 failing is a malformed Manifest: the Applet is greyed out and cannot be opened
 (issue #8).
 
+**Both directions is the demanding half, and it decides what your Inputs may
+offer.** The bender above lists `15mm` and `22mm` only, because those are the two
+formers that have been measured. There is no `28mm` row — and therefore `28mm`
+cannot be a `choice`. The temptation is to fill the gap from the textbook
+(`4 × OD = 112`), and that is exactly the move to refuse: **never derive one
+calibration row from another.** These are measurements of specific lumps of steel,
+not samples of a formula — on this bender the ratio is 4.667 where the book says
+5.000, so a derived row is a guess wearing a measurement's clothes and the Host
+cannot tell the difference. **Either you have measured it, or it is not a choice.**
+
 That last rule — same fields for every key — is why `compute()` can index
-`calibration["r_outside"]` without a guard. If one former carried a field the
+`calibration["r_centreline"]` without a guard. If one former carried a field the
 others lacked, the Applet would work for whoever owns *that* bender and crash for
 everyone else, which is precisely the bug that never shows up in your own testing.
 
 **Nothing checks that your numbers are right.** The Host has no idea what
-`r_outside` means. Only a test bend does.
+`r_centreline` means. Only a test bend does.
 
 ### The user's correction, and one wart
 
@@ -253,7 +278,7 @@ correction survives; equally, they can discard the Overlay and get your values b
 The Applet page carries a **Calibration** disclosure showing the fields for the
 currently selected key, with a reset to your value.
 
-**The wart, worth knowing:** the Overlay is per-machine. `r_outside` describes a
+**The wart, worth knowing:** the Overlay is per-machine. `r_centreline` describes a
 lump of steel, not a computer — so someone who corrects their bender on one machine
 still has the old value on another. It surfaces as a mis-cut pipe. If your Applet's
 calibration is safety- or cost-relevant, say so near the value.
@@ -316,6 +341,10 @@ appears.**
 - [ ] Every Input declared once in `[inputs.*]`, referenced by name per mode.
 - [ ] Each mode lists its Outputs, exactly one `primary = true`.
 - [ ] `default_mode` set (or first mode is intended as the default).
+- [ ] `default_mode` — and `outputs` on a single-mode calculator — written **above
+      the first `[table]` header**. Below one, it silently parses into that table.
+- [ ] Every calibration key is a value you **measured**, not one you derived from
+      another row or from a textbook ratio.
 - [ ] `compute()`'s signature matches what the Manifest declares — `mode` first if
       there are modes, `calibration` last if there is calibration.
 - [ ] Every value the owner might need to correct for their own kit is in
