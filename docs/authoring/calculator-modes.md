@@ -306,6 +306,13 @@ unit    = "mm"
 primary = true
 ```
 
+`outputs` is written here as `[[outputs]]` — an array of tables — rather than
+inline as `outputs = [ ... ]`. Both produce the same top-level `outputs`, but the
+`[[outputs]]` form is **immune to the ordering rule above**: a table header resets
+the context, so it cannot be swallowed by whatever section precedes it. Written
+inline below `[inputs.thread]`, the identical list would silently become
+`inputs.thread.outputs`. Prefer the header form.
+
 `compute()` for a single-mode Applet omits the `mode` argument:
 
 ```python
@@ -341,8 +348,9 @@ appears.**
 - [ ] Every Input declared once in `[inputs.*]`, referenced by name per mode.
 - [ ] Each mode lists its Outputs, exactly one `primary = true`.
 - [ ] `default_mode` set (or first mode is intended as the default).
-- [ ] `default_mode` — and `outputs` on a single-mode calculator — written **above
-      the first `[table]` header**. Below one, it silently parses into that table.
+- [ ] `default_mode` written **above the first `[table]` header** — below one it
+      silently parses into that table. The same applies to a single-mode `outputs`
+      if you write it inline; the `[[outputs]]` form above is immune.
 - [ ] Every calibration key is a value you **measured**, not one you derived from
       another row or from a textbook ratio.
 - [ ] `compute()`'s signature matches what the Manifest declares — `mode` first if
