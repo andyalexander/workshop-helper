@@ -49,7 +49,7 @@ to the outside edge. Every Output's label must name its reference surface.
 | --- | --- | --- |
 | `pipe_od` | **Essential** | 15 / 22 / 28 mm. Sets `OD/2`. |
 | `bend_angle` | **Essential** | Former is marked 30/45/60/90°. |
-| `bend_radius` (as `R_outside`) | **Essential** | Per-bender calibration. **15mm: 70mm (calibrated — user's own benders). 22mm: 99mm (`4 × OD` BPEC default, calculable/overridable).** See below. |
+| `bend_radius` (as `R_centreline`) | **Essential** | Per-bender calibration. **15mm: 70mm. 22mm: 110mm. Both calibrated from the owner's own benders; both are centreline radii** (amended 2026-07-19 — see below; previously stored as `R_outside`, and the 22mm previously on the `4 × OD` default). |
 | `wall_thickness` | **Omit** | Does not enter the geometry. Only gates *feasibility* (Monument: 0.7mm max). |
 
 `wall_thickness` is the one to leave out. It appears in the *sheet-metal* setback formula
@@ -75,22 +75,94 @@ This is a gift: **a single field measurement at 90° calibrates the entire angle
 means "the setback is 70mm" is a *90°-only* statement. Storing `setback = 70` as a flat constant
 would be correct at 90° and **wrong at every other angle** — at 45° the setback is 28.99mm, not 70.
 
-So the Manifest must store the calibration as **`R_outside`** (equivalently: "setback measured at
-90°"), and *derive* setback per angle via `R_outside × tan(θ/2)`. Same number, correct semantics,
-correct at all four of the former's marked angles.
+So the Manifest must store the calibration as **a radius** (equivalently: "setback measured at 90°"),
+and *derive* setback per angle via `R_ref × tan(θ/2)`. Same number, correct semantics, correct at all
+four of the former's marked angles.
 
-**Project decision (2026-07-15):**
+> **Amended 2026-07-19.** This section originally said store it as `R_outside`. **Store it as
+> whichever radius matches the surface the calibration was measured to, and record that surface
+> alongside it** — for both of the owner's benders that is `R_centreline` (see the amendment block
+> below). Hard-coding the *surface* is the same class of error as hard-coding the *angle* that this
+> section warns about: `70` is only `R_outside` if you marked the outer corner, and the owner marks
+> the mid-line.
+
+**Project decision — SUPERSEDED 2026-07-19. Kept for the record; see the block below.**
 
 | Bender | `R_outside` | Provenance | Implied `R_centreline` |
 | --- | --- | --- | --- |
-| **15mm** | **70 mm** | **Owner-supplied figure for their own bender (2026-07-15)** | 62.5mm = `4.17 × OD` |
-| **22mm** | 99 mm | `4 × OD` BPEC convention (default; calculable & overridable) | 88mm = `4 × OD` |
+| ~~**15mm**~~ | ~~**70 mm**~~ | ~~Owner-supplied figure (2026-07-15)~~ | ~~62.5mm = `4.17 × OD`~~ |
+| ~~**22mm**~~ | ~~99 mm~~ | ~~`4 × OD` BPEC convention~~ | ~~88mm = `4 × OD`~~ |
 
-The 15mm figure is a *measurement of the actual tool* and outranks the `4 × OD` convention, which
-was never a measurement of a Monument former. It implies `R_centreline = 62.5mm = 4.17 × OD` — an
-entirely plausible real former, and the resolution of the Appendix's Reading C. The 22mm bender is
-uncalibrated, so it keeps the BPEC default and exposes the calculation; calibrating it later is the
-same one-measurement procedure (bend 90°, measure setback, store as `R_outside`).
+### Amended 2026-07-19 — the reference surface was wrong, and the 22mm is now calibrated
+
+**The owner described the marking method, and it settles the Appendix's ambiguity the other way.**
+For a 90° bend the mark is made where the **mid-line of the outgoing leg** crosses the incoming
+pipe — in the owner's words, *"if the incoming pipe is vertical and the outgoing pipe is horizontal,
+then the 'mid point' would be the mid line of the horizontal tube"* — and the figure is measured back
+from there.
+
+That point is the **centreline vertex**, not the outer corner. So the measured figure is the
+**centreline** setback, and since `setback(90°) ≡ R_ref`, it reads directly as `R_centreline`:
+
+| Bender | measured at 90° | ⇒ `R_centreline` | ⇒ `R_outside` | vs `4 × OD` | Provenance |
+| --- | --- | --- | --- | --- | --- |
+| **15mm** | **70 mm** | **70.0 mm** | 77.5 mm | `4.67 × OD` | Owner's bender, 2026-07-15 |
+| **22mm** | **110 mm** | **110.0 mm** | 121.0 mm | `5.00 × OD` | **Owner's bender, 2026-07-19 — new** |
+
+**Two things changed.** The 22mm bender is **no longer on the BPEC default** — 110mm is a measurement
+of the real tool and outranks the `4 × OD` convention exactly as the 15mm figure does. And the 15mm
+figure moves from `R_outside` to `R_centreline`, a **7.5mm** correction — well outside BPEC's own
+±2mm, so this is not a rounding matter.
+
+**The trade rule-of-thumb cross-check in §6/Appendix is now weaker than it looked.** "Measure back
+100mm for 22mm" was quoted as corroborating the derived 99mm. The owner's own bender wants **110mm**.
+The rule-of-thumb agrees with the *convention*, not with the *tool* — which is the whole reason this
+document insists calibration outranks convention.
+
+**An independent corroboration, from a different measurement entirely.** `D_min`, the minimum offset
+step, is `2·R_cl·(1 − cos θ)` — and at 60° that collapses to **exactly `R_cl`**. The owner's stated
+minimum step for the 15mm bender at 60° is **70mm**, which equals the 90° setback figure. Under the
+old reading (`R_cl` = 62.5) those two numbers should have differed by 7.5mm. Under the new reading
+they coincide, as geometry requires. Treat this as *suggestive rather than conclusive* — the same
+round number could have been quoted twice from habit — but it is a check that only passes on the new
+reading, and it comes from the offset ticket, not this one.
+
+**Both figures come from the same procedure — confirmed by the owner, 2026-07-19:** *"if for the 90
+degree in 15mm tube you measure back 70mm, the same process on 22mm tube would be to measure back
+110mm."* So the two rows now sit on the **same reference surface**, measured the same way, on the
+same bench. This is also what #17 found at the bench for the 15mm bender independently.
+
+### This resolves #22
+
+**[#22](https://github.com/andyalexander/workshop-helper/issues/22) — "Calibration table: 22mm is on
+the wrong reference surface (99 vs 88)"** — is resolved, though **not by answering its questions.**
+
+#22 correctly identified that the two rows sat on **two different reference surfaces**: 15mm measured
+and centreline-referenced (per #17), 22mm derived from BPEC's `4 × OD` and then *converted* to an
+outside radius (`88 + 11 = 99`) on #4's since-falsified assumption. It notes the error is 11mm at 90°,
+five times the trade tolerance, and silent.
+
+It then says the blocking problem is that **"no bender available for 22mm — this cannot be settled the
+way #17 was."** That is no longer true. The owner measured it: **110mm**.
+
+That collapses the ticket's four decisions rather than answering them:
+
+| #22's decision | Status |
+| --- | --- |
+| 1. Is BPEC's `4 × OD` a centreline radius? | **Moot for the calibration table** — no BPEC figure is used in it now. Still open for the *uncalibrated fallback* path, and still worth quoting rather than inferring. |
+| 2. Should the 22mm row become 88.0? | **No.** Neither 88 nor 99. It is **110**, measured. Both candidates were inferences from a convention that understates this former by 22mm of centreline radius. |
+| 3. Does a published figure belong in this table? | **Resolved by removal.** Both rows are now measurements off specific benders, so the table is homogeneous and #15's discriminator is satisfied. The `4 × OD` convention moves to the fallback path, where it is honestly labelled as a convention. |
+| 4. What does the field get called? | **`r_centreline`**, with the surface in the name, per #4's own rule. `r_outside` would now lie about both rows. |
+
+**The methodological point #22 makes is the one worth keeping**: *"changing 99 → 88 without settling
+(1) just swaps one inferred number for another, and this project has been burned twice on exactly
+that."* It was right to refuse the one-line fix. The resolution came from a measurement, which is the
+only thing that could have settled it — and it landed on **110**, a value neither candidate was
+close to.
+
+**Still worth doing:** the 45° check remains the cleanest ongoing validation of the whole
+`R_ref × tan(θ/2)` model, since 90° is the one angle where a reference-surface error cannot show
+(15mm at 45°: 28.99mm centreline vs 32.10mm outside).
 
 **Honest caveat on scope (§4):** for a **90° bend BPEC explicitly says no drawing or
 calculation is needed** — you align a mark against a scrap pipe with a square. The Applet's
@@ -312,22 +384,45 @@ All values recomputed and cross-checked. Reference surface stated for every figu
 
 ### Example 1 — 15mm copper, CALIBRATED bender (the primary case) ⭐
 
-Uses the project's calibrated `R_outside = 70mm`. **These are the fixtures to implement against.**
+**Amended 2026-07-19.** Uses the calibrated `R_centreline = 70mm` (was: `R_outside = 70mm`).
+**These are the fixtures to implement against.**
 
 | | |
 | --- | --- |
-| **Inputs** | `OD = 15mm`, `R_outside = 70mm` (calibrated), `θ` per row |
-| Implied `R_centreline` | `70 − 7.5` = 62.5 mm (`4.17 × OD`) |
+| **Inputs** | `OD = 15mm`, `R_centreline = 70mm` (calibrated), `θ` per row |
+| Implied `R_outside` | `70 + 7.5` = 77.5 mm (`5.17 × OD`) |
 
-| Bend angle | Setback = `70 × tan(θ/2)` |
+| Bend angle | Setback, centreline = `70 × tan(θ/2)` | Setback, outside edge = `77.5 × tan(θ/2)` |
+| --- | --- | --- |
+| 30° | 18.76 mm | 20.77 mm |
+| 45° | 28.99 mm | 32.10 mm |
+| 60° | 40.41 mm | 44.74 mm |
+| **90°** | **70.00 mm** ← returns the calibration | 77.50 mm |
+
+The 90° row returning exactly 70.00 is the self-consistency check: `setback(90°) ≡ R_ref`. The other
+rows are the reason not to store a bare "70" — at 45° the answer is 28.99mm. **Both columns are shown
+because the numeric values are unchanged from the previous revision; only the label moved.** That is
+precisely the hazard §3 warns about: the same arithmetic, a different surface, and a 7.5mm error that
+nothing in the calculation itself can catch.
+
+### Example 1a — 22mm copper, CALIBRATED bender (new, 2026-07-19) ⭐
+
+| | |
 | --- | --- |
-| 30° | 18.76 mm |
-| 45° | 28.99 mm |
-| 60° | 40.41 mm |
-| **90°** | **70.00 mm** ← returns the calibration by construction |
+| **Inputs** | `OD = 22mm`, `R_centreline = 110mm` (calibrated), `θ` per row |
+| Implied `R_outside` | `110 + 11` = 121.0 mm (`5.50 × OD`) |
 
-The 90° row returning exactly 70.00 is the self-consistency check: `setback(90°) ≡ R_outside`.
-The other rows are the reason not to store a bare "70" — at 45° the answer is 28.99mm.
+| Bend angle | Setback, centreline | Setback, outside edge |
+| --- | --- | --- |
+| 30° | 29.47 mm | 32.42 mm |
+| 45° | 45.56 mm | 50.12 mm |
+| 60° | 63.51 mm | 69.86 mm |
+| **90°** | **110.00 mm** ← returns the calibration | 121.00 mm |
+
+**This supersedes Example 3's `4 × OD` figures for the owner's 22mm bender.** Example 3 is retained
+below as the convention-derived fallback for an uncalibrated 22mm tool — note it lands at 99mm
+against the real tool's 110mm, an **11mm** gap and the largest convention-vs-calibration divergence
+recorded in this document.
 
 ### Example 1b — 15mm from first principles, via the BPEC `4 × OD` convention
 
@@ -510,7 +605,30 @@ from a single number quoted without its reference surface. That is precisely the
 Applet exists to avoid propagating — and it is why the resolution below matters more than the
 number itself.
 
-### Resolved (2026-07-15) — Reading C
+### Re-resolved (2026-07-19) — Reading C, centreline branch
+
+> **This appendix picked the wrong branch of Reading C, and the correction is worth reading before
+> the original text below.** Reading C splits two ways — 70mm as `R_centreline` or as `R_outside` —
+> and the original resolution chose `R_outside` on the strength of BPEC marking out to the outside
+> edge. **The owner has since described the actual marking method, and it is the centreline branch**
+> (see the amendment block in the Recommendation). The mark goes where the *mid-line* of the outgoing
+> leg crosses the incoming pipe, which is the centreline vertex.
+>
+> | | `R_centreline` | `R_outside` | as `× OD` |
+> | --- | --- | --- | --- |
+> | ~~original resolution~~ | ~~62.5~~ | ~~**70.0**~~ | ~~4.17~~ |
+> | **corrected** | **70.0** | 77.5 | 4.67 |
+>
+> **The lesson is the one this appendix already stated, turned on its author.** It says two unknowns
+> are entangled and cannot be separated from a single number quoted without its reference surface —
+> then separated them anyway, by inferring the surface from what BPEC *teaches* rather than from what
+> the owner *does*. The number was never the problem; the surface was, exactly as predicted. **What
+> resolved it was asking how the mark is made**, not further reading.
+>
+> Note the original text below is otherwise sound and its arithmetic is unchanged — every figure in
+> it is still right for the branch it names. Only the choice between branches was wrong.
+
+### Resolved (2026-07-15) — Reading C *(original text, superseded above)*
 
 The project owner states **70mm** as the figure for their own 15mm bender. Taken as exact for the
 real tool, that settles **Reading C**: the former simply is not `4 × OD`. Since
@@ -535,11 +653,13 @@ is angle-dependent; 70 is the answer only at 90°. See "Calibrating at 90°" in 
 
 ## Open questions for the Applet
 
-1. **What is the Monument 15mm former's actual centreline radius?** Unpublished. Needs one
-   measurement from the physical tool, then saved as a Manifest default. Until then `4 × OD = 60mm`
-   is a convention, not a measurement — and the Applet should not imply otherwise. The "70mm"
-   field heuristic (see Appendix) is consistent with a true former radius anywhere in roughly
-   60–70mm depending on reference surface — measuring the tool collapses this immediately.
+1. ~~**What is the Monument 15mm former's actual centreline radius?**~~ **ANSWERED 2026-07-19:
+   `R_centreline` = 70mm (15mm bender) and 110mm (22mm bender)**, both calibrated from the owner's
+   own tools, both centreline-referenced now the marking method is known. Neither is `4 × OD`; they
+   are `4.67 × OD` and `5.00 × OD`. **The BPEC convention understates both formers**, by 10mm and
+   22mm of centreline radius respectively — so the convention should be presented as a fallback for
+   uncalibrated tools only, never as an expected value. *(Original text: unpublished, needs one
+   measurement from the physical tool, then saved as a Manifest default.)*
 2. **Does the Applet render the 90° case at all,** given BPEC says not to calculate it? Suggest it
    renders the diagram plus the square-and-scrap-pipe method note.
 3. **Should offsets/passovers be the same Applet or siblings?** They share the radius/angle inputs
