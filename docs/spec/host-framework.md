@@ -1045,13 +1045,45 @@ The domain content it commits to:
 
 ### 11.3 `thread-finder` — `calculator`
 
-`diameter` (number, mm) + `pitch` (number, mm) + **`metric_only` (bool, default
-`false`)** → a ranked **`table`** of nearest thread candidates with tap drill
-sizes.
+`diameter` (number, mm) + `pitch` (number) + **`pitch_unit` (choice, `mm`/`TPI`,
+default `mm`)** + **`metric_only` (bool, default `false`)** → a ranked **`table`**
+of nearest thread candidates. The column set is fixed (#25, #27): **series,
+designation, major Ø, pitch, flank angle, tap drill, provenance**.
 
 Covers the **`table`** Result channel and the **`bool`** Input kind — the two
 contracts that had no runnable consumer (#24). The owner asked for this Applet;
 the coverage hole did not manufacture it (§1.7).
+
+**Ranking is pitch-first, and the instruments decide why (#27).** A caliper reads
+diameter — noisy, continuous; a pitch gauge reads pitch — near-exact, discrete. So
+every series is normalised to a common space (pitch-length in mm — metric/BA
+native, UN/Whitworth/BSP via `25.4/TPI`), **pitch gates hard** (a near-miss is
+dropped, not ranked low), and **diameter orders** the survivors by distance. This
+filters on the exact axis and ranks on the noisy one, and it is the one ranking
+that works **system-blind** — the whole point of an *unknown* fastener. ISO 261's
+coarse/fine and choice-order preferences are consciously not used: the finder's
+ties are genuine physical collisions, not orderings a preference list should paper
+over.
+
+**Pitch input is dual-unit for exactly one reason: protect the exact axis.**
+Forcing the user to hand-convert a TPI gauge leaf would round `25.4/20 → 1.3` and
+inject noise into the axis the ranking depends on, so `pitch_unit` moves the
+conversion into `compute()`. It exercises #5's reciprocal-conversion case and
+stays inside the closed input kinds (§4.3). It buys **no** contract coverage —
+`choice` is already covered by the pipe-bender — and is justified by
+protect-the-exact-axis alone, not by coverage or ceremony (§1.7).
+
+**When candidates tie, the Applet declines honestly.** Pitch-matched candidates
+that also tie on diameter within caliper resolution — 1/4" UNC vs 1/4" BSW, 13 BA
+vs M1.2 — are shown as a **flagged tied group** naming the discriminator
+(*"Indistinguishable on Ø + pitch — differ only in flank angle; check with a
+gauge"*), **never a silent winner**. This is §6.2's refusal reworked for a case
+where declining is *correct*: unlike #18's two-unranked-conventions punt, the
+tiebreak here is a **real further measurement the user can go take**. So **flank
+angle is a `table` column, not an input** (60° metric/UN, 55° Whitworth/BSP, 47.5°
+BA), and the flow is **resolve-then-measure** — which is why compute-on-open stays
+untouched (§4.6) and the closed kinds stay closed. Promoting angle to an input
+later is additive-safe if a real need ever appears.
 
 **The default is load-bearing, and it is the UK mixed-unit reality doing the
 work.** The finder's real job is an *unknown* fastener off old kit, so BSW, BA and
@@ -1123,7 +1155,7 @@ contract nothing else covers?**
 | `documentation` render, assets, content indexing | `thread-pitch` |
 | `calculator` render, form, round-trip | all three |
 | `number` Input, `min`/`max`/`step` | `pipe-bender`, `thread-finder` |
-| `choice` Input | `pipe-bender` |
+| `choice` Input | `pipe-bender`, `thread-finder` |
 | `bool` Input | **`thread-finder`** |
 | Modes, derived selector, per-mode primary | `pipe-bender` |
 | `[calibration]` + `keyed_by` | `pipe-bender` |
@@ -1216,7 +1248,9 @@ Reasoning lives in these; this document restates only their conclusions.
 [#18](https://github.com/andyalexander/workshop-helper/issues/18) graphic + coverage bar ·
 [#22](https://github.com/andyalexander/workshop-helper/issues/22) calibration surface ·
 [#23](https://github.com/andyalexander/workshop-helper/issues/23) provenance ·
-[#24](https://github.com/andyalexander/workshop-helper/issues/24) uncovered contracts
+[#24](https://github.com/andyalexander/workshop-helper/issues/24) uncovered contracts ·
+[#25](https://github.com/andyalexander/workshop-helper/issues/25) thread series data ·
+[#27](https://github.com/andyalexander/workshop-helper/issues/27) finder ranking
 
 **Research** — [`library-stack.md`](../research/library-stack.md) ·
 [`pipe-bender-setback.md`](../research/pipe-bender-setback.md) ·
