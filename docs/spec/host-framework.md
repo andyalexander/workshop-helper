@@ -1254,7 +1254,8 @@ Reasoning lives in these; this document restates only their conclusions.
 
 **Research** — [`library-stack.md`](../research/library-stack.md) ·
 [`pipe-bender-setback.md`](../research/pipe-bender-setback.md) ·
-[`pipe-bender-offset.md`](../research/pipe-bender-offset.md)
+[`pipe-bender-offset.md`](../research/pipe-bender-offset.md) ·
+[`thread-series-data.md`](../research/thread-series-data.md)
 
 **Authoring** — [`calculator-modes.md`](../authoring/calculator-modes.md)
 (⚠️ predates #17/#22 — its `r_outside` field name and its `28mm` row are both

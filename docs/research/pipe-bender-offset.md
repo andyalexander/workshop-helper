@@ -4,7 +4,8 @@ Research resolving [issue #13](https://github.com/andyalexander/workshop-helper/
 Date: 2026-07-15.
 
 Builds on [`pipe-bender-setback.md`](./pipe-bender-setback.md) (issue #4), which pinned
-`setback = R_outside × tan(θ/2)` and established that `gain`, `deduct`, `take-up` and `shrink`
+`setback = R_ref × tan(θ/2)` (amended 2026-07-19: `R_ref` is centreline for the owner's benders,
+not outside edge) and established that `gain`, `deduct`, `take-up` and `shrink`
 name **different quantities**. Same tool class: UK plumbing, copper tube to BS EN 1057, Monument
 fixed-former lever bender.
 
@@ -50,6 +51,19 @@ The transposition is a **30–60mm** error, and it is in circulation.
 **Implement `mark gap = R_cl·θ + m`, and label it as a tangent-point distance on straight pipe.**
 Show `D/sin θ` alongside it, labelled as the vertex distance. Showing one without the other is how
 this goes wrong.
+
+> **Added 2026-07-19 (§4B) — the owner's bench figures land, and they settle two things.** Measured
+> multipliers and minimum steps for both benders were scored against this derivation. **15mm at 30°
+> and 45° confirm the cosecant to within ±2mm — so §4A's transposition is now confirmed by
+> measurement, not just by derivation** (the owner measures 2.0 at 30° where the video teaches 1.2).
+> **22mm at 60° lands on the gain-corrected value (1.08), not on any published constant** — the
+> strongest evidence in this document that the gain correction is real on these tools.
+>
+> It also produces the finding that should drive the Applet's interface: **`multiplier = cosec θ −
+> gain/D` is a function of the step, so no constant multiplier is correct.** Flat at 30°, moving by
+> 0.07 across a normal range at 60°. **Emit millimetres for the entered step, not a multiplier.**
+> Two of the six figures conflict and are flagged for re-measure; because they point in opposite
+> directions they are not a systematic fault. See §4B.
 
 ---
 
@@ -287,9 +301,9 @@ BPEC also restates the tolerance:
 
 > "Check that the clearance is correct – **The accepted industry tolerance is +/- 2mm.**"
 
-Note the gain at the angles that matter for 15mm copper is **0.32mm at 22.5°, 0.77mm at 30°,
-2.69mm at 45°** [D]. **At and below 30° the gain is inside BPEC's own tolerance** — which is very
-likely *why* nobody in UK copper ever needed the correction. At 45° it is not, and at 60° (6.72mm)
+Note the gain at the angles that matter for 15mm copper is **0.36mm at 22.5°, 0.86mm at 30°,
+3.01mm at 45°** *(recomputed 2026-07-19 on `R_cl` = 70mm)* [D]. **At and below 30° the gain is inside BPEC's own tolerance** — which is very
+likely *why* nobody in UK copper ever needed the correction. At 45° it is not, and at 60° (7.53mm)
 it is badly outside.
 
 ### ⚠️ A fabrication attempt, caught — worth recording
@@ -382,7 +396,8 @@ allows. **The bender's marks are deviation angles**, so the multiplier is `1/sin
 Physically the same point, without algebra: a *shallow* set needs its marks *further* apart. The
 video has it backwards.
 
-**What it costs**, for a wanted 80mm set on 15mm copper (`R_cl` = 62.5):
+**What it costs**, for a wanted 80mm set on 15mm copper *(computed on the then-current `R_cl` = 62.5;
+the calibration is now 70mm, which shifts these under a millimetre and changes no conclusion)*:
 
 | | mark gap used | set achieved | error |
 | --- | --- | --- | --- |
@@ -478,6 +493,188 @@ agree by construction.
 
 ---
 
+## 4B. Owner's bench figures — and why a constant multiplier cannot be right [S][D]
+
+**Added 2026-07-19.** The repo owner supplied multipliers and minimum steps measured on **their own
+two benders**. These are the first figures in either ticket taken from *the tools this project is
+actually for*, so they outrank every manufacturer table quoted above. Scoring them turned up
+something more useful than any individual number: **a structural reason no constant multiplier can
+be correct**, which changes what the Applet should emit.
+
+**Method, as stated by the owner.** The multiplier is applied to the **step** — the offset between
+the two parallel legs. Both marks go on the **straight pipe before any bending**: mark one, mark two
+at `step × multiplier`, bend the first mark, move to the second, bend that. Worked example given: a
+60mm step at 30° on 22mm ⇒ marks **111mm** apart.
+
+That is precisely the sequencing §3 and §4A identify as **wrong by one gain** — Greenlee's and the
+masterclass's method, not Swagelok's. So the quantity being measured here is the **mark gap**, and
+the correct comparison is `D·cosec θ − gain`, never the bare cosecant.
+
+### The structural finding: the multiplier is a function of the step
+
+```
+mark gap   = D · cosec θ − gain
+multiplier = mark gap / D = cosec θ − gain / D
+```
+
+`gain` is a fixed millimetre quantity — it depends only on `R_cl` and `θ`, **not** on the step. So
+dividing by `D` makes the multiplier **step-dependent** [D]: it approaches the cosecant as the step
+grows and falls away from it as the step shrinks, fastest at steep angles where gain is largest.
+
+Correct multiplier, on the calibrated `R_cl` = 70mm (15mm) and 110mm (22mm), across the working
+range [D]:
+
+| | gain | 50mm | 75mm | 100mm | 150mm | 200mm | 300mm | → ∞ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 15mm 30° | 0.86 | 1.983 | 1.989 | 1.991 | 1.994 | 1.996 | 1.997 | 2.000 |
+| 15mm 45° | 3.01 | 1.354 | 1.374 | 1.384 | 1.394 | 1.399 | 1.404 | 1.414 |
+| 15mm 60° | 7.53 | — | 1.054 | 1.079 | 1.105 | 1.117 | 1.130 | 1.155 |
+| 22mm 30° | 1.35 | 1.973 | 1.982 | 1.986 | 1.991 | 1.993 | 1.995 | 2.000 |
+| 22mm 45° | 4.73 | — | 1.351 | 1.367 | 1.383 | 1.391 | 1.398 | 1.414 |
+| 22mm 60° | 11.83 | — | — | — | 1.076 | 1.096 | 1.115 | 1.155 |
+
+*(dashes are below the geometric floor `D_min`.)*
+
+**At 30° the column is flat to three decimals and a constant multiplier of 2.0 is genuinely fine. At
+60° it moves by 0.08 across the range — 8mm of mark position per 100mm of step.** So the honest
+statement is not "the multiplier is 1.155" or "1.2", but **"at 60° there is no such thing as the
+multiplier"**. This is the sharpest form of §8.5: the number is correct only for a stated method
+**and a stated step**.
+
+### The figures, scored
+
+Each multiplier run forwards through the geometry: mark at `step × multiplier`, bend both, and see
+what step actually comes out [D]. Scored against BPEC's ±2mm.
+
+**Rescored 2026-07-19** on the corrected calibration — `R_cl` = **70mm** (15mm) and **110mm** (22mm),
+per #4's amendment. The 22mm bender is no longer on the `4 × OD` default, and both radii are now
+centreline-referenced. Bigger formers mean more gain, which pushes the correct multiplier down toward
+the owner's 22mm figures — so this rescoring *improves* two rows.
+
+| | multiplier | at the stated minimum step | at a 100mm step | verdict |
+| --- | --- | --- | --- | --- |
+| 15mm 30° | 2.0 | 30 → **30.4** (+0.4) | 100 → **100.4** (+0.4) | ✅ **confirmed** |
+| 15mm 45° | 1.4 | 50 → **51.6** (+1.6) | 100 → **101.1** (+1.1) | ✅ **confirmed** |
+| 15mm 60° | 1.2 | 70 → **79.3** (+9.3) | 100 → **110.4** (+10.4) | ❌ **conflict** |
+| 22mm 30° | 1.85 | 60 → **56.2** (−3.8) | 100 → **93.2** (−6.8) | ❌ **conflict** |
+| 22mm 45° | 1.32 | 80 → **78.0** (−2.0) | 100 → **96.7** (−3.3) | ✅ **confirmed at its minimum** |
+| 22mm 60° | 1.08 | 150 → **150.5** (+0.5) | *below floor* | ✅ **confirmed** |
+
+**Four of six now land inside the trade tolerance, and they are the most valuable rows in this
+document.** The 22mm/60° row went from −1.5mm to **+0.5mm** once the real former radius replaced the
+`4 × OD` guess, and 22mm/45° from −2.7mm to **−2.0mm**. A calibration derived from an entirely
+separate measurement (the 90° setback) pulling two independent offset measurements *onto* the
+prediction is the strongest cross-validation in either ticket — three numbers from three different
+procedures agreeing on one geometry.
+
+Note 22mm/45° passes **at its stated minimum step and drifts out at 100mm** (−3.3mm). That is not a
+defect in the figure; it is the step-dependence above, made visible. It is further reason to emit
+millimetres rather than a multiplier.
+
+**15mm at 30° and 45° independently confirm the cosecant** — and therefore confirm, from the owner's
+own bench, that **§4A's video is transposed**. The owner measures **2.0 at 30°** where the video
+teaches 1.2. That is no longer a derivation against a transcript; it is a measurement against a
+transcript.
+
+**22mm at 60° is the single most informative figure here.** 1.08 is *not* the trade table's 1.2, and
+it is not the cosecant's 1.155 — it sits on the **gain-corrected** value (1.060 at a 100mm step,
+1.092 at 150mm). A number that lands on the corrected curve rather than either published constant is
+very hard to arrive at by anything except measurement.
+
+### The two remaining conflicts — and why they are not one fault
+
+The owner's standing rule is that empirical figures win unless the gap is small enough to be
+measurement noise. These two gaps are **not** small: 3.8mm and 9.3mm against a ±2mm tolerance. They
+also **cannot share a physical cause, because they point in opposite directions** [D] — the 15mm
+figure is too *high* and the 22mm figure too *low*. A former radius error, a datum offset or a
+springback allowance would push both the same way.
+
+**A partial-radius explanation was tested and is now half-vindicated** [D]. Gain scales with `R_cl`,
+so a larger former depresses the multiplier. Back-solving the radius each 22mm figure would need:
+
+| angle | required `R_cl` | actual calibrated `R_cl` | |
+| --- | --- | --- | --- |
+| 30° | **732 mm** | 110 | not a radius, not a tool |
+| 45° | 175 mm | 110 | overshoots, but same order |
+| 60° | **104 mm** | 110 | **agrees within 6mm** |
+
+**This is why the calibration mattered.** When this section was first written against the `4 × OD`
+default of 88mm, all three back-solved radii looked absurd and the whole 22mm set looked broken. With
+the real 110mm former in hand, the 60° figure is *explained* rather than anomalous, 45° is close, and
+only 30° remains impossible. **The apparent fault was substantially in our radius, not in the owner's
+measurements.**
+
+One thing remains **ruled out** [D]: a **fixed datum offset** (e.g. the "just after the arm" mark of
+§4A sitting a constant distance off the tangent point) cannot explain the residue — the implied
+offset would have to be equal at every angle, and at any assumed step from 50 to 300mm it spreads
+~9mm across the three.
+
+What survives, per row:
+
+1. **15mm 60° = 1.2 looks carried over, not measured.** 1.2 is the standard trade rounding of
+   1.1547, and it is the one figure in the set that matches a *published table* rather than the
+   bench. Worse, its two errors **add** instead of cancelling: rounding 1.1547 → 1.2 pushes the mark
+   gap up, and ignoring gain pushes it up again. (Contrast §4A's 45° case, where the rounding
+   *down* to 1.4 cancels ~42% of the gain — which is exactly why 15mm 45° passes here.) The
+   corrected figure is **1.05–1.11** over a 75–150mm step. The contrast with the owner's own 22mm
+   figure is the tell: at 60° on 22mm they recorded **1.08**, a gain-corrected value found nowhere in
+   any table, while at 60° on 15mm they recorded the table's 1.2. **Recommend a re-measure at 60°.**
+2. **22mm 30° = 1.85 is the one genuine outlier.** It sits *below* the gain-corrected 1.977, and no
+   radius rescues it (732mm, above). The mark gap is 8mm short, which yields a 3.8mm step error —
+   and 3.8mm at a shallow angle is a large miss, because shallow angles are the *forgiving* ones:
+   `dD/d(mark gap) = sin θ` is only 0.5 at 30°, so it takes an 8mm marking error to move the step
+   3.8mm. **Recommend a re-measure, recording the step used.**
+
+**Both surviving conflicts are at a single angle on a single bender**, which is a far better place to
+be than the six-way disagreement this section started from. The route out of most of it was not more
+derivation — it was **calibrating the 22mm bender** (#4, 2026-07-19) and asking how the mark is
+actually made.
+
+### Minimum step — no conflict, and it is a second constraint, not the same one
+
+The owner's minimum steps are the **smallest offset achievable at that angle**, which is the
+quantity §1 derives as `D_min = 2·R_cl·(1 − cos θ)` — the point where the two arcs meet and no
+straight is left between them.
+
+| | geometric floor `D_min` | owner's stated minimum | headroom |
+| --- | --- | --- | --- |
+| 15mm 30° | 18.8 | **30** | +11.2 |
+| 15mm 45° | 41.0 | **50** | +9.0 |
+| 15mm 60° | **70.0** | **70** | **+0.0** |
+| 22mm 30° | 29.5 | **60** | +30.5 |
+| 22mm 45° | 64.4 | **80** | +15.6 |
+| 22mm 60° | 110.0 | **150** | +40.0 |
+
+**Every stated minimum clears the geometric floor, so there is no conflict** — the two numbers are
+answering different questions and both are right. `D_min` is where the *geometry* fails; the owner's
+figure is where the *tool* fails, and it is always the larger of the two because a lever bender needs
+real straight pipe between the bends to grip and to swing the arm through.
+
+### The 15mm 60° coincidence — a cross-check on the calibration [D]
+
+At 60°, `D_min = 2·R_cl·(1 − cos 60°) = 2·R_cl·½` = **`R_cl` exactly**. So the minimum step at 60°
+and the setback at 90° are *the same number* — two quantities from two different procedures that must
+agree if the calibration is right.
+
+The owner's 15mm figures are **70mm** for both. They agree exactly. Under #4's *previous* reading
+(`R_cl` = 62.5mm) they should have differed by 7.5mm.
+
+**Weigh this carefully rather than banking it.** It is a check that only passes on the corrected
+calibration, and it arrives from a different ticket — but the same round number quoted twice from
+habit would look identical, and the 22mm bender does **not** reproduce it (minimum 150mm against
+`R_cl` = 110mm, a 40mm practical margin). Treat it as corroboration, not proof. It is recorded
+because it is the only cross-check available that costs nothing.
+
+The headroom is otherwise not a constant, so it cannot be modelled as a single "minimum straight" —
+**+9 to +11mm on the 15mm bender at 30–45°** but **+16 to +40mm on the 22mm**, consistent with the
+larger tool needing much more room. **Treat the owner's minimum as the one to enforce and `D_min` as
+the explanation of why a floor exists at all.** The Applet should refuse below the owner's figure
+where one is recorded, fall back to `D_min` where none is, and show both — a user who knows the
+geometric floor is 88mm and the practical floor is 150mm understands their tool better than one who
+is only told "no".
+
+---
+
 ## 5. Q4 — Gain / take-up / deduct / shrink: which one is this?
 
 ### **It is `gain`. It already has a name, and Swagelok owns the definition.** [S]
@@ -552,7 +749,7 @@ That is Method 2 *without* the gain subtraction. Two mitigations, both real:
 electrician2 attacks exactly this and quantifies it: "the errors in distance between bends for a 30
 inch high offset varied from 1/16 of an inch for 1/2 inch EMT with a 30 degree offset to **4 inches
 for 5 inch rigid pipe with a 60 degree offset**" [S]. Big pipe, steep angle — where our 22mm/60°
-gain of 9.46mm lives.
+gain of 11.83mm lives.
 
 ---
 
@@ -606,36 +803,50 @@ why the mark survives being turned over.
 
 ## 7. Worked examples (implementation fixtures)
 
-`R_cl` per #4's calibration: **15mm → 62.5mm** (from calibrated `R_outside` = 70mm), **22mm → 88mm**
-(`4 × OD` BPEC default). All values [D], recomputed this session.
+**Recomputed 2026-07-19** on #4's corrected calibration: **15mm → `R_cl` 70mm**, **22mm → `R_cl`
+110mm** — both centreline-referenced measurements of the owner's own benders. *(Superseded: 62.5mm
+and the `4 × OD` default of 88mm. Every number in this table moved; do not use a cached copy.)*
+All values [D].
 
 | Case | `D_min` | vertex gap `D/sin θ` | **mark gap** ⭐ | gain | shrink |
 | --- | --- | --- | --- | --- | --- |
-| 15mm, 22.5°, 60mm step | 9.52 | 156.79 | **156.47** | 0.32 | 11.29 |
-| 15mm, 30°, 60mm step | 16.75 | 120.00 | **119.23** | 0.77 | 14.54 |
-| 15mm, 45°, 100mm step | 36.61 | 141.42 | **138.73** | 2.69 | 36.04 |
-| 15mm, 60°, 100mm step | 62.50 | 115.47 | **108.75** | 6.72 | 44.30 |
-| 22mm, 30°, 80mm step | 23.58 | 160.00 | **158.92** | 1.08 | 19.27 |
-| 22mm, 45°, 120mm step | 51.55 | 169.71 | **165.92** | 3.79 | 42.13 |
-| 22mm, 60°, 150mm step | 88.00 | 173.21 | **163.74** | 9.46 | 67.68 |
+| 15mm, 22.5°, 60mm step | 10.66 | 156.79 | **156.43** | 0.36 | 11.22 |
+| 15mm, 30°, 60mm step | 18.76 | 120.00 | **119.14** | 0.86 | 14.36 |
+| 15mm, 45°, 100mm step | 41.01 | 141.42 | **138.41** | 3.01 | 35.40 |
+| 15mm, 60°, 100mm step | 70.00 | 115.47 | **107.94** | 7.53 | 42.68 |
+| 22mm, 30°, 80mm step | 29.47 | 160.00 | **158.65** | 1.35 | 18.73 |
+| 22mm, 45°, 120mm step | 64.44 | 169.71 | **164.97** | 4.73 | 40.24 |
+| 22mm, 60°, 150mm step | 110.00 | 173.21 | **161.38** | 11.83 | 62.95 |
 
-**Minimum step `D_min = 2·R_cl·(1 − cos θ)`** — the Applet must refuse below this [D]:
+**Minimum step `D_min = 2·R_cl·(1 − cos θ)`** — the *geometric* floor [D]:
 
 | | 22.5° | 30° | 45° | 60° |
 | --- | --- | --- | --- | --- |
-| 15mm (`R_cl` 62.5) | 9.5 | 16.7 | **36.6** | 62.5 |
-| 22mm (`R_cl` 88) | 13.4 | 23.6 | **51.5** | 88.0 |
+| 15mm (`R_cl` 70) | 10.7 | 18.8 | **41.0** | 70.0 |
+| 22mm (`R_cl` 110) | 16.7 | 29.5 | **64.4** | 110.0 |
+
+> **Amended 2026-07-19 (§4B).** An earlier revision said *"the Applet must refuse below this"*. It
+> must refuse below the **owner's measured minimum**, which is higher at every angle measured except
+> one — **150mm against 110mm** at 22mm/60°, and +9 to +11mm on the 15mm bender at 30–45°. `D_min` is
+> where the geometry stops being solvable; the bender runs out of grip well before that. Refusing
+> only at `D_min` would pass steps the tool cannot physically pull.
+>
+> The exception is 15mm/60°, where the two coincide at 70mm — because `D_min(60°) ≡ R_cl`. See §4B.
 
 **Gain, against BPEC's ±2mm tolerance** [D] — the row that decides whether the Applet matters:
 
 | | 22.5° | 30° | 45° | 60° | 90° |
 | --- | --- | --- | --- | --- | --- |
-| 15mm (`R_cl` 62.5) | 0.32 | 0.77 | **2.69** | **6.72** | 26.83 |
-| 22mm (`R_cl` 88) | 0.45 | 1.08 | **3.79** | **9.46** | 37.77 |
+| 15mm (`R_cl` 70) | 0.36 | 0.86 | **3.01** | **7.53** | 30.04 |
+| 22mm (`R_cl` 110) | 0.56 | 1.35 | **4.73** | **11.83** | 47.21 |
+
+*(Recomputed 2026-07-19 on the corrected calibration. The larger real formers make gain **bigger**
+than the `4 × OD` convention implied, so the Applet's case is stronger than the superseded figures
+showed — 11.83mm at 22mm/60°, not 9.46mm.)*
 
 **Read this table carefully — it is the Applet's whole business case.** Below 30°, the gain is
 smaller than the tolerance and the trade formula is fine. At 45° and above it is not, and it grows
-fast. An Applet that corrects a 0.32mm error at 22.5° is noise; one that corrects 9.46mm at 22mm/60°
+fast. An Applet that corrects a 0.36mm error at 22.5° is noise; one that corrects 11.83mm at 22mm/60°
 is the difference between a pipe that fits the clips and one that doesn't.
 
 ### Do NOT fixture Swagelok's worked example — retracted on review [D]
@@ -697,7 +908,7 @@ Consistent with #4 §7: the Applet must show its working.
 2. **The minimum step**, checked before anything else: `D_min = 2·R_cl·(1 − cos θ)`. Below it, no
    arithmetic is meaningful — the arcs collide. Refuse, don't round.
 3. **The gain, next to the ±2mm tolerance**, so the user can see when it matters. At 22.5° it is
-   0.32mm and the Applet should say *"below the trade tolerance — the trade formula is fine here"*.
+   0.36mm and the Applet should say *"below the trade tolerance — the trade formula is fine here"*.
    Honesty about when the tool is unnecessary is what makes it trustworthy when it is.
 4. **The BPEC method, as a first-class alternative — not a footnote.** BPEC's drawing-as-template
    method is *immune* to this entire problem, and for a 15mm offset at 30° it is strictly better than
@@ -732,6 +943,16 @@ this session:**
 - [Greenlee SITE-RITE Hand Benders instruction manual (52034125)](https://www.itm.com/pdfs/cache/www.itm.com/843f/manual/843f-manual.pdf) —
   downloaded, read in full. Source of the offset/shrink tables, "center-to-center", "two equal
   opposing bends", the stub-only scope of `Deduct`, and the mark-both-then-bend method.
+
+**High trust — measurement of the actual tools (added 2026-07-19):**
+
+- **Owner's bench figures for their own 15mm and 22mm benders** — multipliers and minimum steps at
+  30/45/60°, with the marking method stated (both marks on straight pipe, step measured between the
+  parallel legs). Scored in §4B. **This is the only source in either ticket that is a measurement of
+  the tools the project is for**, and it is the reason §4A's transposition finding is now backed by a
+  measurement rather than only by derivation. Three of six figures confirm the geometry to within
+  BPEC's ±2mm; three conflict and are flagged for re-measure (§4B) — the conflicts point in opposite
+  directions, so they are not a single systematic fault in the source.
 
 **Medium trust — trade secondary, used deliberately and labelled:**
 
@@ -810,3 +1031,13 @@ this session:**
    is the template". Rendering an accurate SVG the user can print and lay pipe on may beat any number.
 4. **Confirm the flip convention against the physical bender.** One offset pulled in the actual
    Monument bender settles Q5 in five minutes and no reading will.
+5. **Should the Applet emit a multiplier at all?** [Added 2026-07-19, §4B.] The multiplier is
+   `cosec θ − gain/D` — a **function of the step**, not a constant. At 30° it is flat enough that 2.0
+   is fine; at 60° it moves 0.07 across a normal working range. Emitting a single number reintroduces
+   exactly the error the Applet exists to remove. **Suggest: emit the mark gap in millimetres for the
+   step the user actually entered, and show the multiplier only as a derived sanity-check figure,
+   labelled with its step.**
+6. **Re-measure three figures** [Added 2026-07-19, §4B]: 15mm/60° (recorded 1.2, the trade table's
+   rounding; geometry says 1.06–1.09), and 22mm/30° and 45° (recorded 1.85 and 1.32, both *below* the
+   gain-corrected 1.978 and 1.364). Record the step used alongside each — without it a multiplier
+   cannot be scored, which is the lesson of this section.
