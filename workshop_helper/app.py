@@ -19,15 +19,18 @@ URL. That rewrite is why markdown-it-py was chosen (``library-stack.md`` §3).
 from flask import Flask, abort, render_template, send_from_directory
 from werkzeug.wrappers import Response
 
-from workshop_helper.discovery import DOCUMENTATION, Applet, Index
+from workshop_helper.discovery import Applet, Index
+from workshop_helper.manifest import DOCUMENTATION
 from workshop_utils import render_markdown
 
 ASSETS_PREFIX = "assets"
 
 
 def asset_base(applet: Applet) -> str:
-    """Where ``applet``'s own folder is mounted — the prefix relative URLs resolve
-    against. Trailing slash matters: ``urljoin`` would drop the last segment."""
+    """Where ``applet``'s own folder is mounted, for scoping relative URLs.
+
+    The trailing slash matters: without it ``urljoin`` drops the last segment.
+    """
     return f"/a/{applet.id}/{ASSETS_PREFIX}/"
 
 

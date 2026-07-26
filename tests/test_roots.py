@@ -21,13 +21,6 @@ def test_own_and_builtin_roots_are_named_by_tier(tmp_path: Path) -> None:
     assert builtin.name == "built-in"
 
 
-def test_only_the_own_root_is_flagged_as_own(tmp_path: Path) -> None:
-    own, builtin, foreign = resolve_roots(tmp_path, [Path("/mnt/a")])
-    assert own.is_own is True
-    assert builtin.is_own is False
-    assert foreign.is_own is False
-
-
 def test_builtin_root_ships_inside_the_package() -> None:
     """The built-in Root lives in the wheel, not on the user's disk (spec §2.5)."""
     assert BUILTIN_ROOT_PATH.is_dir()
@@ -45,7 +38,5 @@ def test_foreign_root_named_applets_takes_its_parents_name() -> None:
     assert foreign.name == "mate-collection"
 
 
-def test_roots_are_hashable_so_applets_can_carry_their_provenance() -> None:
-    assert Root(name="own", path=Path("/a"), is_own=True) == Root(
-        name="own", path=Path("/a"), is_own=True
-    )
+def test_roots_compare_by_value_so_applets_can_carry_their_provenance() -> None:
+    assert Root(name="own", path=Path("/a")) == Root(name="own", path=Path("/a"))

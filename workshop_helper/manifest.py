@@ -14,8 +14,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 MANIFEST_FILENAME = "manifest.toml"
+DOCUMENTATION = "documentation"
+CALCULATOR = "calculator"
 # Closed set: adding a type is a change to the Host (ADR-0005, spec §3).
-APPLET_TYPES = frozenset({"documentation", "calculator"})
+APPLET_TYPES = frozenset({DOCUMENTATION, CALCULATOR})
 
 
 class ManifestError(Exception):
@@ -54,7 +56,8 @@ def read_manifest(path: Path) -> Manifest:
     )
 
 
-def _read_applet_section(path: Path) -> dict:
+def _read_applet_section(path: Path) -> dict[str, object]:
+    """Load the Manifest's `[applet]` table, raising if it is not there."""
     try:
         with path.open("rb") as handle:
             document = tomllib.load(handle)
@@ -73,14 +76,16 @@ def _read_applet_section(path: Path) -> dict:
     return applet
 
 
-def _required_string(applet: dict, key: str) -> str:
+def _required_string(applet: dict[str, object], key: str) -> str:
+    """Read a key the Host cannot render the Applet without."""
     value = applet.get(key)
     if not isinstance(value, str) or not value:
         raise ManifestError(f"[applet] needs a non-empty string {key!r}")
     return value
 
 
-def _optional_string(applet: dict, key: str) -> str | None:
+def _optional_string(applet: dict[str, object], key: str) -> str | None:
+    """Read a key that may be absent — but must be a string when present."""
     value = applet.get(key)
     if value is None:
         return None
@@ -89,7 +94,8 @@ def _optional_string(applet: dict, key: str) -> str | None:
     return value
 
 
-def _tags(applet: dict) -> tuple[str, ...]:
+def _tags(applet: dict[str, object]) -> tuple[str, ...]:
+    """Read the tag list as authored. Normalisation happens at scan (§4.2, #33)."""
     tags = applet.get("tags", [])
     if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
         raise ManifestError("[applet] tags must be a list of strings")

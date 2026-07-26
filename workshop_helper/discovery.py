@@ -17,12 +17,16 @@ Two rules do most of the work:
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from workshop_helper.manifest import MANIFEST_FILENAME, ManifestError, read_manifest
+from workshop_helper.manifest import (
+    DOCUMENTATION,
+    MANIFEST_FILENAME,
+    ManifestError,
+    read_manifest,
+)
 from workshop_helper.roots import Root
 
 CONTENT_FILENAME = "content.md"
 APPLET_MODULE_FILENAME = "applet.py"
-DOCUMENTATION = "documentation"
 
 
 @dataclass(frozen=True)
@@ -86,11 +90,15 @@ def build_index(roots: list[Root]) -> Index:
         for folder in folders:
             if folder.name in claimed:
                 continue  # shadowed by a higher tier (§2.7) — #33 greys it.
+            # The id is claimed by the folder, before the Manifest is read: a
+            # *broken* higher-tier Applet still wins. Otherwise a foreign Root
+            # could capture a built-in id by shipping a broken twin of its name,
+            # which is the collision §2.7 exists to close.
+            claimed.add(folder.name)
             applet = _read_applet(folder, root)
             if applet is None:
                 failed += 1
                 continue
-            claimed.add(applet.id)
             applets.append(applet)
 
     return Index(applets=applets, failed=failed, skipped_roots=skipped_roots)

@@ -3,9 +3,8 @@
 from pathlib import Path
 
 import pytest
-from flask.testing import FlaskClient
+from conftest import client_for
 
-from workshop_helper.app import create_app
 from workshop_helper.discovery import Applet, Index
 from workshop_helper.roots import Root
 
@@ -15,12 +14,6 @@ M8 coarse is **1.25mm**.
 
 ![Thread form](thread-form.svg)
 """
-
-
-def _client(index: Index) -> FlaskClient:
-    app = create_app(index)
-    app.config.update(TESTING=True)
-    return app.test_client()
 
 
 def _documentation(tmp_path: Path) -> Applet:
@@ -51,7 +44,7 @@ def _calculator(tmp_path: Path) -> Applet:
 
 
 def test_browse_page_reports_an_empty_library() -> None:
-    body = _client(Index()).get("/").get_data(as_text=True)
+    body = client_for(Index()).get("/").get_data(as_text=True)
     assert "Workshop Helper" in body
     assert "No Applets" in body
 
@@ -59,7 +52,7 @@ def test_browse_page_reports_an_empty_library() -> None:
 def test_browse_page_shows_a_card_per_loaded_applet(tmp_path: Path) -> None:
     index = Index(applets=[_documentation(tmp_path), _calculator(tmp_path)])
 
-    body = _client(index).get("/").get_data(as_text=True)
+    body = client_for(index).get("/").get_data(as_text=True)
 
     assert "Thread pitch" in body
     assert "Pitch and tap-drill reference." in body
@@ -71,7 +64,7 @@ def test_browse_page_shows_a_card_per_loaded_applet(tmp_path: Path) -> None:
 def test_documentation_renders_its_content_as_markdown(tmp_path: Path) -> None:
     index = Index(applets=[_documentation(tmp_path)])
 
-    response = _client(index).get("/a/thread-pitch")
+    response = client_for(index).get("/a/thread-pitch")
 
     body = response.get_data(as_text=True)
     assert response.status_code == 200
@@ -85,7 +78,7 @@ def test_documentation_content_links_resolve_onto_the_assets_mount(
     """The author writes a relative link; the Host scopes it (library-stack §3)."""
     index = Index(applets=[_documentation(tmp_path)])
 
-    body = _client(index).get("/a/thread-pitch").get_data(as_text=True)
+    body = client_for(index).get("/a/thread-pitch").get_data(as_text=True)
 
     assert 'src="/a/thread-pitch/assets/thread-form.svg"' in body
 
@@ -93,7 +86,7 @@ def test_documentation_content_links_resolve_onto_the_assets_mount(
 def test_documentation_serves_the_folders_assets(tmp_path: Path) -> None:
     index = Index(applets=[_documentation(tmp_path)])
 
-    response = _client(index).get("/a/thread-pitch/assets/thread-form.svg")
+    response = client_for(index).get("/a/thread-pitch/assets/thread-form.svg")
 
     assert response.status_code == 200
     assert response.get_data(as_text=True) == "<svg />"
@@ -113,15 +106,15 @@ def test_missing_or_escaping_asset_paths_are_not_found(
     (tmp_path / "secret.txt").write_text("private\n")
     index = Index(applets=[_documentation(tmp_path)])
 
-    assert _client(index).get(path).status_code == 404
+    assert client_for(index).get(path).status_code == 404
 
 
 def test_an_unknown_applet_id_is_not_found() -> None:
-    assert _client(Index()).get("/a/nobody").status_code == 404
+    assert client_for(Index()).get("/a/nobody").status_code == 404
 
 
 def test_a_calculator_is_not_renderable_yet(tmp_path: Path) -> None:
     """Calculator rendering — form, lazy import, Result — arrives with #35."""
     index = Index(applets=[_calculator(tmp_path)])
 
-    assert _client(index).get("/a/pipe-bender").status_code == 501
+    assert client_for(index).get("/a/pipe-bender").status_code == 501

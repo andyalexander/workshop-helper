@@ -29,17 +29,15 @@ ASSET_BASE_KEY = "asset_base"
 _URL_ATTRS = {"link_open": "href", "image": "src"}
 
 
-def _is_relative(url: str) -> bool:
-    """Whether ``url`` points inside the Applet's own folder.
+def render_markdown(text: str, asset_base: str | None = None) -> str:
+    """Render Markdown ``text`` to an HTML fragment.
 
-    Absolute paths, external URLs (any scheme), protocol-relative URLs and
-    same-page fragments all address something the Host does not own, and are
-    left exactly as the author wrote them.
+    ``asset_base`` is the URL prefix the caller serves the document's own folder
+    from. When given, relative links and images are resolved against it, so an
+    author writes ``![](thread-form.svg)`` and never needs to know the mount
+    point. External and absolute URLs are untouched.
     """
-    if not url or url.startswith(("/", "#")):
-        return False
-    parsed = urlparse(url)
-    return not parsed.scheme and not parsed.netloc
+    return _RENDERER.render(text, {ASSET_BASE_KEY: asset_base})
 
 
 def _scope_assets(state: StateCore) -> None:
@@ -57,16 +55,18 @@ def _scope_assets(state: StateCore) -> None:
                 child.attrSet(attr, urljoin(base, url))
 
 
+def _is_relative(url: str) -> bool:
+    """Whether ``url`` points inside the Applet's own folder.
+
+    Absolute paths, external URLs (any scheme), protocol-relative URLs and
+    same-page fragments all address something the Host does not own, and are
+    left exactly as the author wrote them.
+    """
+    if not url or url.startswith(("/", "#")):
+        return False
+    parsed = urlparse(url)
+    return not parsed.scheme and not parsed.netloc
+
+
 _RENDERER = MarkdownIt("commonmark", {"html": False}).enable("table")
 _RENDERER.core.ruler.push("scope_assets", _scope_assets)
-
-
-def render_markdown(text: str, asset_base: str | None = None) -> str:
-    """Render Markdown ``text`` to an HTML fragment.
-
-    ``asset_base`` is the URL prefix the caller serves the document's own folder
-    from. When given, relative links and images are resolved against it, so an
-    author writes ``![](thread-form.svg)`` and never needs to know the mount
-    point. External and absolute URLs are untouched.
-    """
-    return _RENDERER.render(text, {ASSET_BASE_KEY: asset_base})

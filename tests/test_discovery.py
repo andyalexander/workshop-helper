@@ -23,7 +23,7 @@ name = "Pipe-bender setback"
 
 def _root(path: Path, name: str = "own") -> Root:
     path.mkdir(parents=True, exist_ok=True)
-    return Root(name=name, path=path, is_own=name == "own")
+    return Root(name=name, path=path)
 
 
 def _documentation(root: Root, applet_id: str, body: str = "# Thread pitch\n") -> Path:
@@ -164,6 +164,25 @@ def test_roots_are_scanned_in_tier_order_and_the_higher_tier_wins(
         ("spanner-sizes", "mate-collection"),
     ]
     assert index.applets[0].body == "mine\n"
+
+
+def test_a_broken_higher_tier_applet_still_claims_its_id(tmp_path: Path) -> None:
+    """Precedence is by tier, not by health (spec §2.7).
+
+    Otherwise a foreign Root captures a built-in id by shipping a broken twin of
+    its name — the collision the tier rule exists to close.
+    """
+    builtin = _root(tmp_path / "builtin", name="built-in")
+    foreign = _root(tmp_path / "theirs", name="mate-collection")
+    broken = builtin.path / "thread-pitch"
+    broken.mkdir()
+    (broken / "manifest.toml").write_text('[applet]\ntype = "widget"\n')
+    _documentation(foreign, "thread-pitch")
+
+    index = build_index([builtin, foreign])
+
+    assert index.applets == []
+    assert index.failed == 1
 
 
 def test_applets_are_ordered_by_id_within_a_root(tmp_path: Path) -> None:

@@ -23,15 +23,10 @@ BUILTIN_ROOT_NAME = "built-in"
 
 @dataclass(frozen=True)
 class Root:
-    """A directory the Host scans for Applets.
-
-    ``is_own`` marks the user's own Root, which the shell UI badges inline
-    (spec §9). It is display-only; filtering stays global.
-    """
+    """A directory the Host scans for Applets."""
 
     name: str
     path: Path
-    is_own: bool = False
 
 
 def foreign_root_name(path: Path) -> str:
@@ -48,7 +43,7 @@ def resolve_roots(home: Path, config_roots: list[Path]) -> list[Root]:
     scan time, not here (spec §2.5).
     """
     return [
-        Root(name=OWN_ROOT_NAME, path=home / APPLETS_DIRNAME, is_own=True),
+        Root(name=OWN_ROOT_NAME, path=home / APPLETS_DIRNAME),
         Root(name=BUILTIN_ROOT_NAME, path=BUILTIN_ROOT_PATH),
         *(Root(name=foreign_root_name(path), path=path) for path in config_roots),
     ]

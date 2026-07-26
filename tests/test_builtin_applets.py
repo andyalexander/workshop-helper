@@ -6,9 +6,9 @@ contract, markdown via `workshop_utils`, asset serving, and the content-body
 indexing #2's full-text fallback depends on.
 """
 
+from conftest import client_for
 from flask.testing import FlaskClient
 
-from workshop_helper.app import create_app
 from workshop_helper.discovery import Index, build_index
 from workshop_helper.roots import BUILTIN_ROOT_NAME, BUILTIN_ROOT_PATH, Root
 
@@ -20,9 +20,7 @@ def _index() -> Index:
 
 
 def _client() -> FlaskClient:
-    app = create_app(_index())
-    app.config.update(TESTING=True)
-    return app.test_client()
+    return client_for(_index())
 
 
 def test_the_builtin_root_loads_without_faults() -> None:
