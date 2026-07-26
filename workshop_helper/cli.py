@@ -11,6 +11,7 @@ import argparse
 from workshop_helper.discovery import build_index
 from workshop_helper.home import load_config_roots, resolve_home
 from workshop_helper.lifecycle import DEFAULT_PORT, serve
+from workshop_helper.roots import resolve_roots
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -33,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
     home = resolve_home()
-    roots = load_config_roots(home)
+    roots = resolve_roots(home, load_config_roots(home))
     index = build_index(roots)
 
     return serve(index, args.port)
