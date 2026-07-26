@@ -56,20 +56,6 @@ class Applet:
     tags: tuple[str, ...] = ()
     body: str | None = None
 
-    @property
-    def search_text(self) -> str:
-        """Everything #2's full-text fallback searches over (§2.6, §9).
-
-        The folder name comes first because it is an Applet's identity and the
-        one term a broken twin would still answer to. Tokenising, prefix rules
-        and ranking are #34's; this is only the corpus.
-        """
-        return "\n".join(
-            part
-            for part in (self.id, self.name, self.description, *self.tags, self.body)
-            if part
-        )
-
 
 @dataclass(frozen=True)
 class Fault:
@@ -104,7 +90,13 @@ class Fault:
 
     @property
     def search_text(self) -> str:
-        """A faulty card stays findable — by folder name at the very least."""
+        """What a greyed card stays findable by (§10.1).
+
+        The folder name is the whole point: when the Manifest will not parse
+        there is no name to search, and the id is the only handle left. #34 owns
+        the search itself, and a loaded Applet's richer corpus (§2.6) with it —
+        a Fault has nothing but this.
+        """
         return "\n".join(part for part in (self.id, self.name) if part)
 
 

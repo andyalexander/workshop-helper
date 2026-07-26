@@ -433,19 +433,6 @@ def test_tags_reach_the_index_normalised(tmp_path: Path) -> None:
     assert applet.tags == ("copper", "hand tools")
 
 
-def test_an_applets_search_text_covers_name_description_tags_and_body(
-    tmp_path: Path,
-) -> None:
-    """#2's full-text fallback needs all four (§2.6); ranking is #34's."""
-    root = _root(tmp_path / "own")
-    _documentation(root, "thread-pitch", body="M8 coarse is 1.25mm.\n")
-
-    (applet,) = build_index([root]).applets
-
-    for term in ("thread-pitch", "Thread pitch", "tap-drill", "fastener", "1.25mm"):
-        assert term in applet.search_text
-
-
 def test_a_fault_record_is_self_describing() -> None:
     """A Fault needs no Index to render: id, provenance, reason (spec §10.1)."""
     fault = Fault(
