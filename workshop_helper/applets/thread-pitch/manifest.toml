@@ -1,0 +1,6 @@
+[applet]
+type        = "documentation"
+name        = "Thread pitch"
+description = "Pitch and tap-drill reference for the thread series you meet in a workshop."
+author      = "andy"
+tags        = ["fastener", "thread", "reference"]

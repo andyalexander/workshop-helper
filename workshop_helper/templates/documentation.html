@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ applet.name }} — Workshop Helper{% endblock %}
+{% block content %}
+  <article class="applet documentation">
+    <h2>{{ applet.name }}</h2>
+    <p class="provenance">Root '{{ applet.root.name }}'{% if applet.author %}, by {{ applet.author }}{% endif %}</p>
+    {# Rendered by workshop_utils.render_markdown — the author's own markup. #}
+    {{ content | safe }}
+  </article>
+{% endblock %}

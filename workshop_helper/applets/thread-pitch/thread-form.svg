@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 200" width="500"
+     role="img" aria-label="Schematic thread profile showing pitch, thread depth, major and minor diameter lines.">
+  <title>Thread profile — pitch, depth, and the 60&#176; ISO flank angle</title>
+  <g fill="none" stroke="#1c1c1c" stroke-width="2">
+    <polyline points="20,120 60,60 100,120 140,60 180,120 220,60 260,120 300,60 340,120 380,60 420,120" />
+  </g>
+  <g fill="none" stroke="#8a8580" stroke-width="1" stroke-dasharray="6 4">
+    <line x1="20" y1="60" x2="440" y2="60" />
+    <line x1="20" y1="120" x2="440" y2="120" />
+  </g>
+  <g fill="none" stroke="#1c1c1c" stroke-width="1">
+    <line x1="60" y1="38" x2="140" y2="38" />
+    <path d="M60,38 l8,-4 v8 z" fill="#1c1c1c" />
+    <path d="M140,38 l-8,-4 v8 z" fill="#1c1c1c" />
+    <line x1="465" y1="60" x2="465" y2="120" />
+    <path d="M465,60 l-4,8 h8 z" fill="#1c1c1c" />
+    <path d="M465,120 l-4,-8 h8 z" fill="#1c1c1c" />
+  </g>
+  <g fill="#1c1c1c" font-family="system-ui, sans-serif" font-size="13">
+    <text x="100" y="30" text-anchor="middle">P &#8212; pitch (crest to crest)</text>
+    <text x="455" y="94" text-anchor="end">thread depth</text>
+    <text x="200" y="145" text-anchor="middle">60&#176; included flank angle (ISO metric)</text>
+  </g>
+  <g fill="#5d5d5d" font-family="system-ui, sans-serif" font-size="12">
+    <text x="24" y="54">major diameter</text>
+    <text x="24" y="136">minor diameter</text>
+    <text x="20" y="180">Schematic. Proportions are not to scale; crest and root radii are omitted.</text>
+  </g>
+</svg>

@@ -1,4 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
-  <p class="empty-state">No Applets yet. Add one to a Root to see it here.</p>
+  {% if applets %}
+    <ul class="card-grid">
+      {% for applet in applets %}
+        <li class="card">
+          <h2>
+            <a href="{{ url_for('applet_page', applet_id=applet.id) }}">{{ applet.name }}</a>
+          </h2>
+          {% if applet.description %}
+            <p class="description">{{ applet.description }}</p>
+          {% endif %}
+          <p class="provenance">{{ applet.type }} &middot; Root '{{ applet.root.name }}'</p>
+          {% if applet.tags %}
+            <ul class="tags">
+              {% for tag in applet.tags %}<li class="tag">{{ tag }}</li>{% endfor %}
+            </ul>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="empty-state">No Applets yet. Add one to a Root to see it here.</p>
+  {% endif %}
 {% endblock %}
