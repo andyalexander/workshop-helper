@@ -1,0 +1,17 @@
+{# The one layered error surface of spec §10.3: a plain blame line over a
+   collapsed Details disclosure. Both halves of §10 render through this macro —
+   discovery-time reasons here, compute-time tracebacks with #35 — so there is
+   one place the surface is shaped, not one per fault kind.
+
+   `title_tag` lets the blame line *be* the heading where the surface is the
+   whole of a thing, as on a greyed card. It stays one component either way:
+   the alternative is a card title that repeats the blame line back at you. #}
+{% macro error_surface(surface, title_tag="p") %}
+  <div class="error-surface">
+    <{{ title_tag }} class="blame"><span aria-hidden="true">⚠</span> {{ surface.blame }}</{{ title_tag }}>
+    <details>
+      <summary>Details</summary>
+      <pre class="details">{{ surface.details }}</pre>
+    </details>
+  </div>
+{% endmacro %}

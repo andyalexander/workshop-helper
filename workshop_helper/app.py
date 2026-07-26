@@ -6,6 +6,10 @@ Three surfaces are specified — Browse, Applet page, Compute. Browse and the
 already-resolved :class:`~workshop_helper.discovery.Index` so routing stays a
 pure function of discovery.
 
+**Un-openable is a property of the index, not of a check here.** A faulty Applet
+lives in ``index.faults``, which no lookup consults, so a greyed card has no page
+to reach even by hand-typed URL (§10.1).
+
 The ``documentation`` pipeline is the whole of ADR-0005's contract for that type:
 read ``content.md``, render it through ``workshop_utils.render_markdown``, serve
 the folder's assets. **No Applet Python is imported. Ever.**
@@ -47,7 +51,12 @@ def create_app(index: Index) -> Flask:
 
     @app.route("/")
     def browse() -> str:
-        return render_template("browse.html", applets=index.applets)
+        # Faults render alongside the cards, never instead of them: a greyed card
+        # is a card (§10.1). `require_applet` cannot reach one, so every route
+        # below is un-openable for a faulty id by construction.
+        return render_template(
+            "browse.html", applets=index.applets, faults=index.faults
+        )
 
     @app.route("/a/<applet_id>")
     def applet_page(applet_id: str) -> str:

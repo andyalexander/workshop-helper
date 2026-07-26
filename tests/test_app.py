@@ -1,11 +1,11 @@
-"""Routing and the render pipeline (spec §2.8, §3.1)."""
+"""Routing, the render pipeline, and the greyed card (spec §2.8, §3.1, §10.1)."""
 
 from pathlib import Path
 
 import pytest
 from conftest import client_for
 
-from workshop_helper.discovery import Applet, Index
+from workshop_helper.discovery import Applet, Fault, Index
 from workshop_helper.roots import Root
 
 CONTENT = """# Thread pitch
@@ -118,3 +118,78 @@ def test_a_calculator_is_not_renderable_yet(tmp_path: Path) -> None:
     index = Index(applets=[_calculator(tmp_path)])
 
     assert client_for(index).get("/a/pipe-bender").status_code == 501
+
+
+# --- The greyed, un-openable card (§10.1, §10.3) ------------------------------
+
+
+def _fault(
+    tmp_path: Path,
+    applet_id: str = "pipe-bender",
+    reason: str = "missing applet.py",
+    name: str | None = "Pipe-bender setback",
+    author: str | None = "dave",
+) -> Fault:
+    return Fault(
+        id=applet_id,
+        root=Root(name="mate-collection", path=tmp_path),
+        path=tmp_path / applet_id,
+        reason=reason,
+        name=name,
+        author=author,
+    )
+
+
+def test_a_faulty_applet_gets_a_greyed_card(tmp_path: Path) -> None:
+    body = client_for(Index(faults=[_fault(tmp_path)])).get("/").get_data(as_text=True)
+
+    assert "faulty" in body
+    assert "Pipe-bender setback" in body
+
+
+def test_a_greyed_card_is_un_openable(tmp_path: Path) -> None:
+    """No link out of it, and nothing behind the URL either (§10.1)."""
+    client = client_for(Index(faults=[_fault(tmp_path)]))
+
+    assert 'href="/a/pipe-bender"' not in client.get("/").get_data(as_text=True)
+    assert client.get("/a/pipe-bender").status_code == 404
+
+
+def test_a_greyed_card_shows_the_blame_line_over_collapsed_details(
+    tmp_path: Path,
+) -> None:
+    body = client_for(Index(faults=[_fault(tmp_path)])).get("/").get_data(as_text=True)
+
+    assert "Pipe-bender setback — from Root &#39;mate-collection&#39;, by dave" in body
+    assert "<details>" in body  # collapsed: no `open` attribute
+    assert "Details" in body
+    assert "missing applet.py" in body
+
+
+def test_a_greyed_card_falls_back_to_the_folder_name_and_the_root(
+    tmp_path: Path,
+) -> None:
+    """When the Manifest will not parse, this is the whole card (§10.1, §10.3)."""
+    fault = _fault(
+        tmp_path,
+        applet_id="thread-pitch",
+        name=None,
+        author=None,
+        reason="manifest.toml is not valid TOML",
+    )
+
+    body = client_for(Index(faults=[fault])).get("/").get_data(as_text=True)
+
+    assert (
+        "thread-pitch — from Root &#39;mate-collection&#39;, by mate-collection" in body
+    )
+
+
+def test_faulty_cards_do_not_make_an_empty_library_look_stocked(
+    tmp_path: Path,
+) -> None:
+    """Nothing loaded is still nothing loaded, but the fault must not vanish."""
+    body = client_for(Index(faults=[_fault(tmp_path)])).get("/").get_data(as_text=True)
+
+    assert "No Applets" in body
+    assert "Pipe-bender setback" in body
