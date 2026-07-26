@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_error_surface.html" import error_surface %}
 {% block content %}
   {% if applets %}
     <ul class="card-grid">
@@ -21,5 +22,18 @@
     </ul>
   {% else %}
     <p class="empty-state">No Applets yet. Add one to a Root to see it here.</p>
+  {% endif %}
+  {# Greyed and un-openable: the blame line titles the card, unlinked, because
+     there is nothing to open. The folder name sits under it — it is the id, and
+     the one handle left to search by when no name parsed (§10.1). #}
+  {% if faults %}
+    <ul class="card-grid faults">
+      {% for fault in faults %}
+        <li class="card faulty">
+          {{ error_surface(fault.surface, title_tag="h2") }}
+          <p class="provenance">{{ fault.id }}</p>
+        </li>
+      {% endfor %}
+    </ul>
   {% endif %}
 {% endblock %}

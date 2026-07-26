@@ -25,6 +25,10 @@ _Avoid_: Settings, preferences, config — the Overlay is machine-written user s
 **Root**:
 A directory the Host scans for Applets. An Applet belongs to exactly one Root, which is its provenance — the built-in set, the user's own, or a collection obtained from someone else.
 
+**Fault**:
+An Applet folder the Host refused, rendered as a **greyed, un-openable card** rather than hidden. A Fault is *not* a broken Applet the Host tolerates: it never enters the index, so nothing can open it. Faults the Host can see at scan without importing anything are **discovery-time** ([spec §10.1](docs/spec/host-framework.md)); those needing the Applet to run are **compute-time** and render on the Applet page instead (§10.2). Every Fault renders through one **error surface** — a blame line over a collapsed Details disclosure (§10.3).
+_Avoid_: Error (too broad — a healthy `InvalidInput` refusal is an error and is not a Fault), invalid Applet (it may be a perfectly good Applet that lost a name collision).
+
 **Input**:
 A single named value a calculator Applet needs in order to compute — declared in the Manifest, supplied by the user. The counterpart to an Output: both are named, labelled, and carry a unit.
 _Avoid_: Parameter, field, argument

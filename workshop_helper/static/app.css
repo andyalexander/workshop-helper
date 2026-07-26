@@ -1,11 +1,14 @@
 /* Minimal shell styling. The facet sidebar and its chips are #34 (spec §9);
-   this is only enough for the card grid and a readable documentation page. */
+   this is only enough for the card grid, the greyed card, and a readable
+   documentation page. */
 
 :root {
   --ink: #1c1c1c;
   --muted: #5d5d5d;
   --rule: #d8d5cf;
   --paper: #fbfaf8;
+  --grey: #6b6b6b;
+  --grey-paper: #f2f1ee;
 }
 
 body {
@@ -81,6 +84,44 @@ main {
   border-radius: 999px;
   font-size: 0.75rem;
   padding: 0.1rem 0.55rem;
+}
+
+/* A faulty Applet is greyed and un-openable (spec §10.1). Greyed is carried by
+   both flatter contrast and the ⚠ in the blame line, never colour alone. */
+
+.faults {
+  margin-top: 1rem;
+}
+
+.card.faulty {
+  background: var(--grey-paper);
+  border-style: dashed;
+  color: var(--grey);
+}
+
+.blame {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.card.faulty .provenance {
+  margin-top: 0.5rem;
+}
+
+.error-surface summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-top: 0.4rem;
+}
+
+pre.details {
+  font-size: 0.75rem;
+  margin: 0.4rem 0 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .documentation table {
