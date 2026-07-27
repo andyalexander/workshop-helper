@@ -26,8 +26,10 @@ from workshop_helper.errors import ErrorSurface, error_surface
 from workshop_helper.manifest import (
     DOCUMENTATION,
     MANIFEST_FILENAME,
+    Calibration,
     Input,
     ManifestError,
+    Mode,
     Output,
     read_identity,
     read_manifest,
@@ -63,6 +65,28 @@ class Applet:
     body: str | None = None
     inputs: tuple[Input, ...] = ()
     outputs: tuple[Output, ...] = ()
+    modes: tuple[Mode, ...] = ()
+    default_mode: str = ""
+    calibration: Calibration | None = None
+
+    def mode(self, requested: str | None = None) -> Mode:
+        """The active mode: the one asked for, else the one that opens (§4.5).
+
+        A calculator with no `[modes]` section still has a mode here — anonymous,
+        never rendered, holding the whole Input pool and the top-level Outputs.
+        That is what makes the degenerate case the *absence of a section* rather
+        than a second path through every route below it (§4.6).
+
+        An unknown name falls back to the default rather than faulting: the
+        selector is derived from these modes, so nothing the UI can produce
+        reaches this, and a hand-typed one is not worth a page of error.
+        """
+        if not self.modes:
+            return Mode(name="", label="", inputs=self.inputs, outputs=self.outputs)
+        default = next(
+            (m for m in self.modes if m.name == self.default_mode), self.modes[0]
+        )
+        return next((m for m in self.modes if m.name == requested), default)
 
 
 @dataclass(frozen=True)
@@ -219,6 +243,9 @@ def _read_applet(folder: Path, root: Root) -> Applet | Fault:
         body=body,
         inputs=manifest.inputs,
         outputs=manifest.outputs,
+        modes=manifest.modes,
+        default_mode=manifest.default_mode,
+        calibration=manifest.calibration,
     )
 
 

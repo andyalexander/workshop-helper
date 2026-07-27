@@ -3,5 +3,5 @@
 {# The htmx round-trip's answer (spec §2.8): the Result fragment, which is what
    `hx-target` swaps, followed by the form again with `hx-swap-oob` so a field's
    own error lands on the field. Two fragments, one request, no second route. #}
-{{ results.result(applet, computation) }}
-{{ forms.inputs(applet, form, oob=true) }}
+{{ results.result(mode, computation) }}
+{{ forms.inputs(applet, mode, form, oob=true) }}

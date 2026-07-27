@@ -76,6 +76,17 @@ def test_render_markdown_signature_is_str_to_str() -> None:
     assert sig.return_annotation is str
 
 
+def test_invalid_input_carries_its_message_and_the_fields_it_names() -> None:
+    """The one healthy refusal is field-targeted by construction (spec §10.2)."""
+    refusal = workshop_utils.InvalidInput(
+        "Too tight at this angle.", ["offset", "angle"]
+    )
+
+    assert refusal.message == "Too tight at this angle."
+    assert refusal.inputs == ("offset", "angle")
+    assert str(refusal) == "Too tight at this angle."
+
+
 def test_facade_does_not_reexport_markdown_it() -> None:
     """The underlying library stays private, so it remains swappable (§7.3)."""
     assert not hasattr(workshop_utils, "MarkdownIt")

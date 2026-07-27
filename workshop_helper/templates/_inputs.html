@@ -4,7 +4,7 @@
 
    `oob` re-renders the form out of band on a compute round-trip, which is how a
    field's own error reaches the field while htmx swaps only the Result. #}
-{% macro inputs(applet, form, oob=false) %}
+{% macro inputs(applet, mode, form, oob=false) %}
   <form
     class="inputs"
     id="inputs"
@@ -14,9 +14,29 @@
     hx-target="#result"
     {% if oob %}hx-swap-oob="true"{% endif %}
   >
+    {# The mode selector is derived from `[modes.*]` — there is no `mode` Input,
+       so there is no second source of truth to fall out of sync (§4.5). It posts
+       on change because a mode changes *what exists*: different fields, a
+       different headline. Without JavaScript, Compute does the same job. #}
+    {% if applet.modes %}
+      <div class="field mode">
+        <label for="in-{{ mode_field }}">Mode</label>
+        <select
+          id="in-{{ mode_field }}"
+          name="{{ mode_field }}"
+          hx-post="{{ url_for('compute', applet_id=applet.id) }}"
+          hx-target="#result"
+          hx-include="#inputs"
+        >
+          {% for declared in applet.modes %}
+            <option value="{{ declared.name }}" {% if declared.name == mode.name %}selected{% endif %}>{{ declared.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endif %}
     {% for field in form.fields %}
       {% set declared = field.declared %}
-      <div class="field {{ 'invalid' if field.error }}">
+      <div class="field {{ 'invalid' if field.error or field.refusal }}">
         {% if declared.kind == "bool" %}
           <label for="in-{{ declared.name }}">
             <input
@@ -46,13 +66,18 @@
               {# No declared step means any figure the user can measure, not the
                  integers a bare number input would otherwise insist on. #}
               step="{{ declared.step if declared.step is not none else 'any' }}"
-              {% if field.error %}aria-invalid="true" aria-describedby="err-{{ declared.name }}"{% endif %}
+              {% if field.error or field.refusal %}aria-invalid="true" aria-describedby="err-{{ declared.name }}"{% endif %}
             />
           {% endif %}
           {# `unit` is a display label and nothing else (§4.4, ADR-0006). #}
           {% if declared.unit %}<span class="unit">{{ declared.unit }}</span>{% endif %}
         {% endif %}
-        {% if field.error %}
+        {# A declared rule is a fragment the Host completes with the label; an
+           Applet's `InvalidInput` is its own sentence and is shown as written
+           (§10.2). Both land on the field, which is the point of either. #}
+        {% if field.refusal %}
+          <p class="field-error" id="err-{{ declared.name }}">{{ field.refusal }}</p>
+        {% elif field.error %}
           <p class="field-error" id="err-{{ declared.name }}">{{ declared.label }} {{ field.error }}</p>
         {% endif %}
       </div>

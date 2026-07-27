@@ -30,15 +30,16 @@ from werkzeug.wrappers import Response
 
 from workshop_helper.discovery import Applet, Index
 from workshop_helper.errors import error_surface
-from workshop_helper.form import Form, build_form, computes_on_open
+from workshop_helper.form import Form, build_form, computes_on_open, refuse
 from workshop_helper.loader import AppletFault, run_compute
-from workshop_helper.manifest import DOCUMENTATION
+from workshop_helper.manifest import DOCUMENTATION, MODE, Mode
 from workshop_helper.render import Computation, figure
-from workshop_utils import render_markdown
+from workshop_utils import InvalidInput, render_markdown
 
 ASSETS_PREFIX = "assets"
 COMPUTE_PREFIX = "compute"
 HTMX_HEADER = "HX-Request"
+MODE_FIELD = "mode_field"
 
 
 def asset_base(applet: Applet) -> str:
@@ -93,26 +94,40 @@ def create_app(index: Index) -> Flask:
         applet = require_applet(applet_id)
         if applet.type == DOCUMENTATION:
             abort(404)
-        form = build_form(applet.inputs, request.form)
-        computation = _compute(applet, form)
+        # The selector is the Host's own field, derived from `[modes.*]`; there
+        # is no `mode` Input for it to collide with (§4.5).
+        mode = applet.mode(request.form.get(MODE))
+        form = build_form(mode.inputs, request.form)
+        form, computation = _run_applet(applet, mode, form)
         if request.headers.get(HTMX_HEADER) is None:
-            return _render_calculator(applet, form, computation)
+            return _render_calculator(applet, mode, form, computation)
         return render_template(
-            "_compute.html", applet=applet, form=form, computation=computation
+            "_compute.html",
+            applet=applet,
+            mode=mode,
+            form=form,
+            computation=computation,
         )
 
     def _calculator_page(applet: Applet) -> str:
         """Open a calculator: the form, and a Result iff it can have one (§4.6)."""
-        form = build_form(applet.inputs, submitted=None)
+        mode = applet.mode()
+        form = build_form(mode.inputs, submitted=None)
         computation = Computation()
-        if computes_on_open(applet.inputs):
-            computation = _compute(applet, form)
-        return _render_calculator(applet, form, computation)
+        if computes_on_open(mode.inputs):
+            form, computation = _run_applet(applet, mode, form)
+        return _render_calculator(applet, mode, form, computation)
 
-    def _render_calculator(applet: Applet, form: Form, computation: Computation) -> str:
+    def _render_calculator(
+        applet: Applet, mode: Mode, form: Form, computation: Computation
+    ) -> str:
         """The whole page: the form, and whatever the Result region has to show."""
         return render_template(
-            "calculator.html", applet=applet, form=form, computation=computation
+            "calculator.html",
+            applet=applet,
+            mode=mode,
+            form=form,
+            computation=computation,
         )
 
     @app.route(f"/a/<applet_id>/{ASSETS_PREFIX}/<path:filename>")
@@ -124,22 +139,35 @@ def create_app(index: Index) -> Flask:
         return send_from_directory(applet.path, filename)
 
     app.add_template_filter(figure)
+    # The selector's field name is the Host's, and it is one name: the template
+    # posts under it and the route above reads it back. (`mode` itself is the
+    # active Mode in every template, so the field name gets its own.)
+    app.jinja_env.globals[MODE_FIELD] = MODE
     return app
 
 
-def _compute(applet: Applet, form: Form) -> Computation:
-    """Run the Applet, or carry the fault it produced onto its own page (§10.2).
+def _run_applet(applet: Applet, mode: Mode, form: Form) -> tuple[Form, Computation]:
+    """Run the Applet, or carry back what it refused or how it broke (§10.2).
 
     Static validation is the gate: no ``values`` means nothing is imported and
     nothing is run, so ``compute()`` cannot be reached with a value it would have
     to check for itself (§4.3).
+
+    The form comes back as well as the Result because a healthy refusal lands on
+    a *field*, not in the Result region — an ``InvalidInput`` renders exactly
+    where a `min`/`max` failure would.
     """
     if form.values is None:
-        return Computation()
+        return form, Computation()
+    calibration = (
+        None if applet.calibration is None else applet.calibration.resolve(form.values)
+    )
     try:
-        return Computation(result=run_compute(applet, form.values, applet.outputs))
+        result = run_compute(applet, mode, form.values, calibration)
+    except InvalidInput as refusal:
+        return refuse(form, refusal), Computation()
     except AppletFault as fault:
-        return Computation(
+        return form, Computation(
             surface=error_surface(
                 name=applet.name,
                 root_name=applet.root.name,
@@ -147,3 +175,4 @@ def _compute(applet: Applet, form: Form) -> Computation:
                 author=applet.author,
             )
         )
+    return form, Computation(result=result)

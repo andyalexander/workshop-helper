@@ -39,6 +39,17 @@ What a calculator Applet's compute function returns: named Outputs, plus an opti
 **Output**:
 A single named value in a Result — a value with its unit and label. Outputs are structured data, which is what lets the Host format and lay them out generically.
 
+**Mode**:
+One named shape of a calculator: its own subset of the Inputs, and its own Outputs with its own primary. A mode changes **what exists**; an Input changes what a thing *is*. The selector is derived by the Host from the declared modes, so there is never a `mode` Input — the modes are the single source of truth, with no separate selector to fall out of sync.
+_Avoid_: Tab, view, variant — all suggest a display choice, where a mode selects a different calculation.
+
+**Calibration**:
+Data measured off the physical kit in the **user's own** workshop, declared in the Manifest so it can be corrected in the Overlay without editing anyone's code. The test is one question: *must the owner correct this for their own kit?* If no, it is **reference data** and stays a plain dict in Python — 15mm copper is 15mm everywhere on earth, and a thread standard is not a property of your bench.
+_Avoid_: Constants — a "constant" the user is expected to edit is a contradiction, and the name attracts a junk drawer.
+
+**InvalidInput**:
+An Applet's **healthy refusal** of a valid-typed but impossible combination, naming the Input(s) it belongs against. It is not a Fault: it covers the one gap static validation cannot reach, a **cross-field** condition, and the Host renders it inline exactly like a `min`/`max` failure. *Refuse, don't round.*
+
 ## Workshop domain
 
 **Designation**:
@@ -52,6 +63,15 @@ _Corrected._ This entry previously said "outside edge" with `R_outside`. That wa
 _Avoid_: gain, deduct, take-up, shrink — each names a **different** quantity, not a synonym.
 
 Borrowed from US pipefitting and aerospace. UK copper plumbing has no native term for it, because its training tradition never computes the quantity — it teaches a physical square-and-scrap-pipe alignment instead. Don't let anyone "correct" it to a BPEC term; there isn't one.
+
+**Gain**:
+The material a bend gives back: `gain = 2 × R_centreline × tan(θ/2) − R_centreline × θ`, the amount by which the arc is shorter than the two tangent legs it replaces. It is Swagelok's term and Swagelok's definition. **It is not a synonym for setback**, and the trade's `deduct`, `take-up` and `shrink` each name yet another quantity.
+
+**Mark gap**:
+The distance between the two marks of an offset, **on straight pipe, before either bend** — `mark gap = D · cosec θ − 1 × gain`, where each mark is where that bend starts. The committed convention. It is *not* the vertex-to-vertex distance `D · cosec θ`, which is the same set-out measured a different way; the two differ by exactly one gain, which is why the gain is emitted as its own Output rather than folded away.
+
+**Minimum step**:
+The smallest offset achievable at a given angle, `2 × R_centreline × (1 − cos θ)` — where the two arcs meet and no straight pipe is left between them. Below it the step is impossible, not merely tight. Note the owner's bench figures are *higher* than this at every angle but one, because a lever bender needs real straight pipe to grip: the geometric floor is where the geometry stops, not where the tool does.
 
 ## Notes on usage
 
