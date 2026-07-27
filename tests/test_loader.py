@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from workshop_helper.discovery import Applet
-from workshop_helper.loader import AppletFault, module_name, run
+from workshop_helper.loader import AppletFault, module_name, run_compute
 from workshop_helper.manifest import Output
 from workshop_helper.roots import Root
 from workshop_utils import Result
@@ -48,14 +48,14 @@ def _applet(tmp_path: Path, source: str, applet_id: str = "doubler") -> Applet:
 def test_compute_receives_the_validated_inputs_and_returns_a_result(
     tmp_path: Path,
 ) -> None:
-    result = run(_applet(tmp_path, WORKING), {"x": 4.0}, ANSWER)
+    result = run_compute(_applet(tmp_path, WORKING), {"x": 4.0}, ANSWER)
 
     assert result == Result(outputs={"answer": 8.0})
 
 
 def test_the_module_is_named_by_the_applet_id(tmp_path: Path) -> None:
     """Two Roots' `helpers.py` cannot become one `sys.modules` entry (§7.2)."""
-    run(_applet(tmp_path, WORKING), {"x": 1.0}, ANSWER)
+    run_compute(_applet(tmp_path, WORKING), {"x": 1.0}, ANSWER)
 
     assert module_name("doubler") in sys.modules
 
@@ -71,7 +71,7 @@ def test_an_applet_may_import_its_own_submodules(tmp_path: Path) -> None:
     )
     (applet.path / "helpers.py").write_text("def twice(n):\n    return n * 2\n")
 
-    assert run(applet, {"x": 3.0}, ANSWER).outputs == {"answer": 6.0}
+    assert run_compute(applet, {"x": 3.0}, ANSWER).outputs == {"answer": 6.0}
 
 
 def test_two_applets_keep_their_own_same_named_helpers(tmp_path: Path) -> None:
@@ -87,13 +87,13 @@ def test_two_applets_keep_their_own_same_named_helpers(tmp_path: Path) -> None:
     theirs = _applet(tmp_path / "mate", source, applet_id="theirs")
     (theirs.path / "helpers.py").write_text("factor = 10\n")
 
-    assert run(mine, {"x": 1.0}, ANSWER).outputs == {"answer": 2.0}
-    assert run(theirs, {"x": 1.0}, ANSWER).outputs == {"answer": 10.0}
+    assert run_compute(mine, {"x": 1.0}, ANSWER).outputs == {"answer": 2.0}
+    assert run_compute(theirs, {"x": 1.0}, ANSWER).outputs == {"answer": 10.0}
 
 
 def test_an_applet_id_cannot_displace_a_host_module(tmp_path: Path) -> None:
     """`sys.modules` is shared with the Host: a folder named `math` is not it."""
-    run(_applet(tmp_path, WORKING, applet_id="math"), {"x": 1.0}, ANSWER)
+    run_compute(_applet(tmp_path, WORKING, applet_id="math"), {"x": 1.0}, ANSWER)
 
     assert sys.modules["math"].__name__ == "math"
 
@@ -139,7 +139,7 @@ def test_a_compute_time_fault_carries_a_summary_and_details(
     tmp_path: Path, source: str, summary: str, because: str
 ) -> None:
     with pytest.raises(AppletFault) as raised:
-        run(_applet(tmp_path, source), {"x": 1.0}, ANSWER)
+        run_compute(_applet(tmp_path, source), {"x": 1.0}, ANSWER)
 
     assert summary in raised.value.summary
     assert raised.value.details
@@ -150,7 +150,9 @@ def test_a_crash_keeps_its_traceback_for_the_details_disclosure(
 ) -> None:
     """It is your own machine; Details carries the whole thing (§10.3)."""
     with pytest.raises(AppletFault) as raised:
-        run(_applet(tmp_path, "def compute(inputs):\n    return 1 / 0\n"), {}, ANSWER)
+        run_compute(
+            _applet(tmp_path, "def compute(inputs):\n    return 1 / 0\n"), {}, ANSWER
+        )
 
     assert "ZeroDivisionError" in raised.value.details
     assert "Traceback" in raised.value.details
@@ -165,7 +167,7 @@ def test_a_missing_output_is_named_as_precisely_as_an_unexpected_one(
     )
 
     with pytest.raises(AppletFault) as raised:
-        run(_applet(tmp_path, source), {}, ANSWER)
+        run_compute(_applet(tmp_path, source), {}, ANSWER)
 
     assert "answer, extra" in raised.value.details
 
@@ -174,8 +176,8 @@ def test_a_broken_import_is_not_cached_as_a_half_applet(tmp_path: Path) -> None:
     """Fix the file, reopen the page, get a real second attempt."""
     applet = _applet(tmp_path, "raise RuntimeError('boom')\n")
     with pytest.raises(AppletFault):
-        run(applet, {"x": 1.0}, ANSWER)
+        run_compute(applet, {"x": 1.0}, ANSWER)
 
     (applet.path / "applet.py").write_text(WORKING)
 
-    assert run(applet, {"x": 2.0}, ANSWER).outputs == {"answer": 4.0}
+    assert run_compute(applet, {"x": 2.0}, ANSWER).outputs == {"answer": 4.0}

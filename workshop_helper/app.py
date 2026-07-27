@@ -25,42 +25,20 @@ for. The round-trip is htmx over a form that posts on its own, so the same route
 answers both — a fragment when htmx asked, the whole page when a browser did.
 """
 
-import math
-from dataclasses import dataclass
-
 from flask import Flask, abort, render_template, request, send_from_directory
 from werkzeug.wrappers import Response
 
 from workshop_helper.discovery import Applet, Index
-from workshop_helper.errors import ErrorSurface, error_surface
+from workshop_helper.errors import error_surface
 from workshop_helper.form import Form, build_form, computes_on_open
-from workshop_helper.loader import AppletFault, run
-from workshop_helper.manifest import DOCUMENTATION, Output
-from workshop_utils import Cell, Result, render_markdown
+from workshop_helper.loader import AppletFault, run_compute
+from workshop_helper.manifest import DOCUMENTATION
+from workshop_helper.render import Computation, figure
+from workshop_utils import render_markdown
 
 ASSETS_PREFIX = "assets"
 COMPUTE_PREFIX = "compute"
 HTMX_HEADER = "HX-Request"
-NOTHING = "—"
-
-
-@dataclass(frozen=True)
-class Computation:
-    """What the Result region shows: a Result, a fault, or neither yet.
-
-    Neither is not a failure state — it is a partly-filled form on an Applet that
-    does not compute on open (§4.6), and the region says so rather than showing
-    an empty answer.
-    """
-
-    result: Result | None = None
-    surface: ErrorSurface | None = None
-
-    def shown(self, outputs: tuple[Output, ...]) -> list[tuple[Output, Cell]]:
-        """Declared Outputs paired with their values, in display order (§4.5)."""
-        if self.result is None:
-            return []
-        return [(output, self.result.outputs[output.name]) for output in outputs]
 
 
 def asset_base(applet: Applet) -> str:
@@ -132,6 +110,7 @@ def create_app(index: Index) -> Flask:
         return _render_calculator(applet, form, computation)
 
     def _render_calculator(applet: Applet, form: Form, computation: Computation) -> str:
+        """The whole page: the form, and whatever the Result region has to show."""
         return render_template(
             "calculator.html", applet=applet, form=form, computation=computation
         )
@@ -158,7 +137,7 @@ def _compute(applet: Applet, form: Form) -> Computation:
     if form.values is None:
         return Computation()
     try:
-        return Computation(result=run(applet, form.values, applet.outputs))
+        return Computation(result=run_compute(applet, form.values, applet.outputs))
     except AppletFault as fault:
         return Computation(
             surface=error_surface(
@@ -168,23 +147,3 @@ def _compute(applet: Applet, form: Form) -> Computation:
                 author=applet.author,
             )
         )
-
-
-def figure(value: Cell) -> str:
-    """Format one value for display — the Host's job, never the Applet's (§6).
-
-    A missing cell is an em dash and not a zero: the thread finder's BA rows have
-    no published tap drill, and an empty cell is honest where a computed one
-    would be a lookup that never happened (#25 §3.4).
-    """
-    if value is None:
-        return NOTHING
-    if isinstance(value, bool):
-        return "yes" if value else "no"
-    if isinstance(value, int | float):
-        if not math.isfinite(value):
-            return NOTHING
-        # `g` drops the trailing zeros an exact figure does not have: 8.0 is 8,
-        # and 1.250 is 1.25, without rounding 20.955 to something tidier.
-        return f"{value:g}"
-    return value

@@ -160,6 +160,7 @@ _METRIC_FINE_DRILLS: dict[tuple[float, float], float] = {
 
 
 def _metric_rows() -> list[Thread]:
+    """Every ISO 262 size, coarse first, then that size's fine pitches."""
     rows: list[Thread] = []
     for diameter, coarse, fines in _METRIC_SIZES:
         drill = _METRIC_COARSE_DRILLS.get(diameter)
@@ -234,6 +235,7 @@ _UNIFIED_DRILLS: dict[str, float] = {
 
 
 def _unified_rows() -> list[Thread]:
+    """Both unified series off one diameter table, skipping sizes it omits."""
     rows: list[Thread] = []
     for stem, inches, coarse_tpi, fine_tpi in _UNIFIED_SIZES:
         for series, tpi in ((UNC, coarse_tpi), (UNF, fine_tpi)):
@@ -302,6 +304,7 @@ _BSF_SIZES: tuple[tuple[str, float, int, float | None], ...] = (
 def _whitworth_rows(
     series: str, sizes: tuple[tuple[str, float, int, float | None], ...]
 ) -> list[Thread]:
+    """One Whitworth-form series, its pitch taken from the tpi it is cut at."""
     return [
         Thread(
             series=series,
@@ -342,6 +345,7 @@ _BA_SIZES: tuple[tuple[int, float, float], ...] = (
 
 
 def _ba_rows() -> list[Thread]:
+    """The BA series, which has its own flank angle and no published drill."""
     return [
         Thread(
             series=BA,
@@ -382,6 +386,7 @@ _BSPP_SIZES: tuple[tuple[str, int, float], ...] = (
 
 
 def _bspp_rows() -> list[Thread]:
+    """The G series, labelled a pipe thread and offering no drill (#25 §3.4)."""
     return [
         Thread(
             series=BSPP,

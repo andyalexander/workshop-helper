@@ -30,7 +30,7 @@ actually searched on is the number the user can check against their own gauge,
 and it is where the reciprocal conversion becomes visible.
 """
 
-from workshop_utils import Result, Row, Table
+from workshop_utils import Group, Result, Row, Table
 
 from .threads import MM_PER_INCH, THREADS, Thread
 
@@ -39,7 +39,7 @@ COLUMNS = (
     "Designation",
     "Major Ø (mm)",
     "Pitch (mm)",
-    "Flank angle",
+    "Flank angle (°)",
     "Tap drill (mm)",
     "Provenance",
 )
@@ -62,8 +62,8 @@ FLANK_ANGLE_TIE = (
     "check it with a gauge"
 )
 SERIES_TIE = (
-    "Indistinguishable on Ø + pitch at caliper resolution — and they share a "
-    "flank angle; the series themselves are the difference"
+    "Indistinguishable on Ø + pitch, and identical in flank angle — nothing "
+    "further to measure separates these"
 )
 
 
@@ -107,12 +107,22 @@ def _ranked(diameter_mm: float, pitch_mm: float, metric_only: bool) -> list[Thre
 
 
 def _table(candidates: list[Thread]) -> Table:
-    """Lay the candidates out, flagging each run the measurements cannot split."""
-    rows: list[Row] = []
-    for group in _tied_groups(candidates):
-        flag = _tie_flag(group) if len(group) > 1 else None
-        rows.extend(Row(_cells(thread), flag=flag) for thread in group)
-    return Table(columns=COLUMNS, rows=rows)
+    """Lay the candidates out, grouping each run the measurements cannot split.
+
+    A tie is stated as a group rather than left for the Host to infer from the
+    rows: two collisions can sit next to each other and read alike — 13 BA with
+    M1.2, then 14 BA with M1 — and nothing in the row list distinguishes one
+    four-row refusal from two two-row ones.
+    """
+    return Table(
+        columns=COLUMNS,
+        rows=[
+            Row(_cells(tied[0]))
+            if len(tied) == 1
+            else Group([Row(_cells(thread)) for thread in tied], flag=_tie_flag(tied))
+            for tied in _tied_groups(candidates)
+        ],
+    )
 
 
 def _tied_groups(candidates: list[Thread]) -> list[list[Thread]]:
@@ -135,7 +145,13 @@ def _tied_groups(candidates: list[Thread]) -> list[list[Thread]]:
 
 
 def _tie_flag(group: list[Thread]) -> str:
-    """Name the discriminator, which is what makes declining an answer (§11.3)."""
+    """Name the discriminator, which is what makes declining an answer (§11.3).
+
+    Usually there is one, and it is the flank angle: a gauge settles 1/4" UNC
+    against 1/4" BSW, so the refusal is resolve-then-measure. Where the tied rows
+    share an angle too — M1.8 against No. 1-72 UNF — there is no further reading
+    to take, and saying *that* is still better than picking one of them.
+    """
     if len({thread.flank_angle for thread in group}) > 1:
         return FLANK_ANGLE_TIE
     return SERIES_TIE
@@ -144,15 +160,16 @@ def _tie_flag(group: list[Thread]) -> str:
 def _cells(thread: Thread) -> tuple[str | float | None, ...]:
     """The fixed column set (#25, #27), in order.
 
-    Raw values: the Host formats them, and a `None` tap drill renders as an em
-    dash rather than a computed figure dressed up as a lookup (#25 §3.4).
+    Raw values, including the units the column headers carry: the Host formats
+    them, and a `None` tap drill renders as an em dash rather than a computed
+    figure dressed up as a lookup (#25 §3.4).
     """
     return (
         thread.series,
         thread.designation,
-        round(thread.major_mm, 3),
-        round(thread.pitch_mm, 3),
-        f"{thread.flank_angle:g}°",
+        thread.major_mm,
+        thread.pitch_mm,
+        thread.flank_angle,
         thread.tap_drill_mm,
         thread.provenance,
     )

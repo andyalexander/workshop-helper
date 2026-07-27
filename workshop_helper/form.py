@@ -34,6 +34,11 @@ class Field:
     ``raw`` is the string to put back in the widget and ``checked`` the
     equivalent for a checkbox. Both are display state; ``value`` is the parsed,
     validated thing ``compute()`` would receive.
+
+    ``value`` is ``None`` **exactly when there is nothing to run** — a value the
+    user got wrong, or one nobody has supplied yet. ``Cell`` admits ``None``, but
+    no validated Input ever produces it: a number is a float, a choice is one of
+    its own strings, and a checkbox is a bool.
     """
 
     declared: Input

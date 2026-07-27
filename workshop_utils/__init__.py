@@ -7,6 +7,6 @@ a field-targeted message renders, and that surface is not nil (§1.6).
 """
 
 from workshop_utils._markdown import render_markdown
-from workshop_utils._result import Cell, Result, Row, Table
+from workshop_utils._result import Cell, Group, Result, Row, Table
 
-__all__ = ["Cell", "Result", "Row", "Table", "render_markdown"]
+__all__ = ["Cell", "Group", "Result", "Row", "Table", "render_markdown"]

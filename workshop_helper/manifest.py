@@ -305,7 +305,7 @@ def _input(name: str, declaration: object) -> Input:
         unit=_optional_string(declaration, "unit"),
         min=_optional_number(declaration, "min", where),
         max=_optional_number(declaration, "max", where),
-        step=_optional_number(declaration, "step", where),
+        step=_step(declaration, where),
         choices=_choices(declaration, kind, where),
     )
     return replace(declared, default=_default(declaration, declared, where))
@@ -323,6 +323,20 @@ def _choices(declaration: dict[str, object], kind: str, where: str) -> tuple[str
     ):
         raise ManifestError(f"{where} needs a non-empty list of string choices")
     return tuple(choices)
+
+
+def _step(declaration: dict[str, object], where: str) -> float | None:
+    """Read `step`, which is a grid and therefore has to be a positive number.
+
+    Checked here at scan, not where the grid is applied: a Manifest the Host
+    cannot validate against is a greyed card (§10.1), and leaving it to the first
+    compute would turn an authoring mistake into a mid-request failure on a card
+    that looked perfectly healthy.
+    """
+    step = _optional_number(declaration, "step", where)
+    if step is not None and step <= 0:
+        raise ManifestError(f"{where} step must be greater than zero, not {step}")
+    return step
 
 
 def _optional_number(
@@ -384,6 +398,10 @@ def constraint_violation(declared: Input, value: float) -> str | None:
     stepper offer a value the Host then rejects, which is the same figure being
     valid in the widget and invalid in the Host. `step = 1` ⇒ integer falls out
     of this rule unchanged whenever `min` is itself whole.
+
+    ``declared`` has been through :func:`read_manifest`, so `step` is a positive
+    number or absent. This never raises: it reports on a *value*, and a Manifest
+    the Host cannot work with was refused at scan.
     """
     if declared.min is not None and value < declared.min:
         return f"must be {declared.min} or more"
@@ -391,8 +409,6 @@ def constraint_violation(declared: Input, value: float) -> str | None:
         return f"must be {declared.max} or less"
     if declared.step is None:
         return None
-    if declared.step <= 0:
-        raise ManifestError(f"step must be greater than zero, not {declared.step}")
 
     anchor = declared.min if declared.min is not None else 0
     if _on_grid(value, declared.step, anchor):

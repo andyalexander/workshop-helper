@@ -13,9 +13,9 @@ import pytest
 from conftest import client_for
 
 from workshop_helper.discovery import Index, build_index
-from workshop_helper.loader import run
+from workshop_helper.loader import run_compute
 from workshop_helper.roots import BUILTIN_ROOT_NAME, BUILTIN_ROOT_PATH, Root
-from workshop_utils import Result, Table
+from workshop_utils import Group, Result, Row, Table
 
 BUILTIN = Root(name=BUILTIN_ROOT_NAME, path=BUILTIN_ROOT_PATH)
 MM = "mm"
@@ -44,7 +44,7 @@ def _find(
 ) -> Result:
     applet = _index().applet("thread-finder")
     assert applet is not None
-    return run(
+    return run_compute(
         applet,
         {
             "diameter": diameter,
@@ -61,8 +61,18 @@ def _table(result: Result) -> Table:
     return result.table
 
 
+def _rows(result: Result) -> list[Row]:
+    """Every row, tied or not — the ranking, flattened back out."""
+    return [row for group in _table(result).groups() for row in group.rows]
+
+
 def _designations(result: Result) -> list[str]:
-    return [str(row.cells[DESIGNATION]) for row in _table(result).rows]
+    return [str(row.cells[DESIGNATION]) for row in _rows(result)]
+
+
+def _tied(result: Result) -> list[Group]:
+    """The groups the Applet declined to split."""
+    return [group for group in _table(result).groups() if group.flag]
 
 
 def test_the_manifest_loads_as_an_indexed_calculator() -> None:
@@ -86,7 +96,7 @@ def test_the_column_set_is_the_fixed_one() -> None:
         "Designation",
         "Major Ø (mm)",
         "Pitch (mm)",
-        "Flank angle",
+        "Flank angle (°)",
         "Tap drill (mm)",
         "Provenance",
     )
@@ -123,9 +133,7 @@ def test_diameter_orders_but_never_admits_the_wrong_pitch() -> None:
 
 def test_the_search_is_system_blind() -> None:
     """One reading, every series — the whole point of an *unknown* fastener."""
-    found = {
-        str(row.cells[SERIES]) for row in _table(_find(diameter=6.35, pitch=1.27)).rows
-    }
+    found = {str(row.cells[SERIES]) for row in _rows(_find(diameter=6.35, pitch=1.27))}
 
     assert {"UNC", "BSW"} <= found
 
@@ -163,34 +171,47 @@ def test_the_normalised_pitch_is_the_headline() -> None:
 
 def test_the_quarter_inch_collision_is_a_flagged_tied_group() -> None:
     """1/4" UNC and 1/4" BSW are identical in both measurements (#25 §5.5)."""
-    rows = [row for row in _table(_find(6.35, 20, TPI)).rows if row.flag]
-    tied = {str(row.cells[DESIGNATION]) for row in rows}
+    (group,) = [g for g in _tied(_find(6.35, 20, TPI)) if len(g.rows) > 1]
+    tied = {str(row.cells[DESIGNATION]) for row in group.rows}
 
     assert {'1/4" BSW', "1/4-20 UNC"} <= tied
-    assert "flank angle" in (rows[0].flag or "")
+    assert "flank angle" in (group.flag or "")
 
 
 def test_the_13_ba_collision_is_a_flagged_tied_group() -> None:
     """13 BA and M1.2 are identical in both dimensions (#25 §5.4)."""
-    rows = [row for row in _table(_find(1.2, 0.25)).rows if row.flag]
-    tied = {str(row.cells[DESIGNATION]) for row in rows}
+    tied = {
+        str(row.cells[DESIGNATION])
+        for group in _tied(_find(1.2, 0.25))
+        for row in group.rows
+    }
 
     assert {"13 BA", "M1.2 × 0.25"} <= tied
 
 
-def test_a_tied_group_never_hides_a_member_behind_a_winner() -> None:
-    result = _find(6.35, 20, TPI)
-    tied_group = next(rows for flag, rows in _table(result).groups() if flag)
+def test_two_collisions_in_one_ranking_stay_two_refusals() -> None:
+    """13 BA/M1.2 and 14 BA/M1 read alike and are 0.2mm apart: not one group."""
+    groups = _tied(_find(1.2, 0.25))
 
-    assert len(tied_group) > 1
+    assert len(groups) == 2
+    assert all(len(group.rows) == 2 for group in groups)
+    assert (
+        len({round(float(str(group.rows[0].cells[MAJOR])), 3) for group in groups}) == 2
+    )
+
+
+def test_a_tied_group_never_hides_a_member_behind_a_winner() -> None:
+    (group, *_) = _tied(_find(6.35, 20, TPI))
+
+    assert len(group.rows) > 1
 
 
 def test_a_lone_candidate_is_not_flagged_as_tied() -> None:
     """A flag is a refusal; an unambiguous answer is not one."""
-    rows = _table(_find(diameter=59.6, pitch=25.4 / 11)).rows
-    lone = [row for row in rows if str(row.cells[DESIGNATION]) == "G 2"]
+    groups = _table(_find(diameter=59.6, pitch=25.4 / 11)).groups()
+    (lone,) = [g for g in groups if str(g.rows[0].cells[DESIGNATION]) == "G 2"]
 
-    assert lone and lone[0].flag is None
+    assert lone.flag is None and len(lone.rows) == 1
 
 
 # --- `metric_only`, the `bool` Input (§11.3) ---------------------------------
@@ -198,10 +219,9 @@ def test_a_lone_candidate_is_not_flagged_as_tied() -> None:
 
 def test_metric_only_suppresses_the_imperial_series() -> None:
     """Suppression, not a different search: the gate and the order are untouched."""
-    everything = {str(row.cells[SERIES]) for row in _table(_find(6.35, 20, TPI)).rows}
+    everything = {str(row.cells[SERIES]) for row in _rows(_find(6.35, 20, TPI))}
     suppressed = {
-        str(row.cells[SERIES])
-        for row in _table(_find(6.35, 20, TPI, metric_only=True)).rows
+        str(row.cells[SERIES]) for row in _rows(_find(6.35, 20, TPI, metric_only=True))
     }
 
     assert {"UNC", "BSW"} <= everything
@@ -227,7 +247,7 @@ def test_metric_only_off_by_default_is_the_uk_mixed_unit_reality() -> None:
 
 
 def test_every_row_carries_its_own_provenance() -> None:
-    rows = _table(_find(diameter=6.35, pitch=20, pitch_unit=TPI)).rows
+    rows = _rows(_find(diameter=6.35, pitch=20, pitch_unit=TPI))
 
     assert all(str(row.cells[PROVENANCE]).strip() for row in rows)
 
@@ -236,7 +256,7 @@ def test_dimensions_and_drills_are_sourced_separately_on_the_same_row() -> None:
     """Two documents describe one fastener; one column would bury that (#22)."""
     (m8,) = [
         row
-        for row in _table(_find(8.0, 1.25)).rows
+        for row in _rows(_find(8.0, 1.25))
         if str(row.cells[DESIGNATION]) == "M8 × 1.25"
     ]
 
@@ -247,9 +267,7 @@ def test_dimensions_and_drills_are_sourced_separately_on_the_same_row() -> None:
 def test_a_series_with_no_published_drill_emits_nothing_rather_than_a_formula() -> None:
     """`major − pitch` dressed as a lookup is the failure #25 exists to prevent."""
     (ba,) = [
-        row
-        for row in _table(_find(1.2, 0.25)).rows
-        if str(row.cells[DESIGNATION]) == "13 BA"
+        row for row in _rows(_find(1.2, 0.25)) if str(row.cells[DESIGNATION]) == "13 BA"
     ]
 
     assert ba.cells[DRILL] is None
@@ -260,7 +278,7 @@ def test_the_pipe_series_ships_but_withholds_its_drill() -> None:
     """G 1/2 measures 20.955mm; excluded, the finder answers confidently wrong."""
     (g_half,) = [
         row
-        for row in _table(_find(20.9, 14, TPI)).rows
+        for row in _rows(_find(20.9, 14, TPI))
         if str(row.cells[DESIGNATION]) == "G 1/2"
     ]
 
@@ -274,17 +292,18 @@ def test_flank_angle_is_a_column_and_not_an_input() -> None:
 
     assert applet is not None
     assert not any("angle" in i.name for i in applet.inputs)
-    assert "Flank angle" in _table(_find(8.0, 1.25)).columns
+    assert "Flank angle (°)" in _table(_find(8.0, 1.25)).columns
 
 
 # --- On the page -------------------------------------------------------------
 
 
-def test_the_page_computes_on_open_and_renders_the_table() -> None:
-    """Every Input is defaulted? It is not — pitch and diameter are measurements."""
+def test_the_page_computes_on_open() -> None:
+    """Every Input is defaulted, so opening it is already an answer (§4.6)."""
     body = client_for(_index()).get("/a/thread-finder").get_data(as_text=True)
 
-    assert "Fill in the Inputs" in body
+    assert "Fill in the Inputs" not in body
+    assert "M6 × 1" in body  # the defaults: 6mm, 1mm pitch
     assert 'name="metric_only"' in body
 
 

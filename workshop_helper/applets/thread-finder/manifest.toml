@@ -13,18 +13,23 @@ description = "Identify an unknown thread from a caliper and a pitch gauge."
 author      = "andy"
 tags        = ["fastener", "thread", "workshop"]
 
+# Both measurements are defaulted, so every Input is, so the Applet computes on
+# open (§4.6, §11.5) — it opens on M6 coarse, the commonest thread on the bench,
+# and shows what a filled-in answer looks like before you have measured anything.
 [inputs.diameter]
-kind  = "number"
-label = "Major diameter"
-unit  = "mm"
-min   = 0.5
-max   = 70
+kind    = "number"
+label   = "Major diameter"
+unit    = "mm"
+min     = 0.5
+max     = 70
+default = 6
 
 [inputs.pitch]
-kind  = "number"
-label = "Pitch"
-min   = 0.1
-max   = 100
+kind    = "number"
+label   = "Pitch"
+min     = 0.1
+max     = 100
+default = 1
 
 # Dual-unit entry exists to protect the exact axis (#27): hand-converting a TPI
 # gauge leaf would round 25.4/20 to 1.3 and inject noise into the one axis the

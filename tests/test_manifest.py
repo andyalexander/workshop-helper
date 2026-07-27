@@ -384,13 +384,22 @@ def test_a_default_on_the_step_grid_is_accepted(
     assert manifest.inputs[0].default is not None
 
 
-def test_a_step_of_zero_or_less_is_not_a_grid(tmp_path: Path) -> None:
+@pytest.mark.parametrize("step", ["0", "-1"])
+@pytest.mark.parametrize("default", ["\ndefault = 1", ""])
+def test_a_step_of_zero_or_less_is_not_a_grid(
+    tmp_path: Path, step: str, default: str
+) -> None:
+    """Refused at scan even with no `default` to check it against.
+
+    Otherwise the card looks healthy and the grid only fails when someone types
+    into it, turning an authoring mistake into a mid-request failure (§10.1).
+    """
     with pytest.raises(ManifestError, match="step"):
         read_manifest(
             _write(
                 tmp_path,
-                CALCULATOR_HEAD
-                + '[inputs.thing]\nkind = "number"\nlabel = "A"\nstep = 0\ndefault = 1\n',
+                CALCULATOR_HEAD + '[inputs.thing]\nkind = "number"\nlabel = "A"\n'
+                f"step = {step}{default}\n",
             )
         )
 

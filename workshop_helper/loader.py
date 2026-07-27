@@ -58,7 +58,9 @@ class AppletFault(Exception):
         self.details = details
 
 
-def run(applet: Applet, values: dict[str, Cell], outputs: tuple[Output, ...]) -> Result:
+def run_compute(
+    applet: Applet, values: dict[str, Cell], outputs: tuple[Output, ...]
+) -> Result:
     """Import ``applet``, run its ``compute()``, and check what came back.
 
     ``values`` has already passed static validation (§4.3), so ``compute()``
