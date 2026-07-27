@@ -20,6 +20,8 @@ tags        = ["fastener", "thread"]
 """
 
 CALC_MANIFEST = """
+outputs = [{ name = "setback", label = "Setback", unit = "mm" }]
+
 [applet]
 type = "calculator"
 name = "Pipe-bender setback"
@@ -222,6 +224,8 @@ def test_index_looks_applets_up_by_id(tmp_path: Path) -> None:
 # --- The discovery-time fault taxonomy (§10.1) -------------------------------
 
 BAD_DEFAULT_MANIFEST = """
+outputs = [{ name = "setback", label = "Setback", unit = "mm" }]
+
 [applet]
 type   = "calculator"
 name   = "Pipe-bender setback"

@@ -1,0 +1,62 @@
+{# The form, built from the `[inputs.*]` pool (spec §4.3). Three kinds and no
+   more: `number`, `choice`, `bool` (#24). Every Input is required by definition,
+   so nothing here is optional and there is no `required` marker to render.
+
+   `oob` re-renders the form out of band on a compute round-trip, which is how a
+   field's own error reaches the field while htmx swaps only the Result. #}
+{% macro inputs(applet, form, oob=false) %}
+  <form
+    class="inputs"
+    id="inputs"
+    method="post"
+    action="{{ url_for('compute', applet_id=applet.id) }}"
+    hx-post="{{ url_for('compute', applet_id=applet.id) }}"
+    hx-target="#result"
+    {% if oob %}hx-swap-oob="true"{% endif %}
+  >
+    {% for field in form.fields %}
+      {% set declared = field.declared %}
+      <div class="field {{ 'invalid' if field.error }}">
+        {% if declared.kind == "bool" %}
+          <label for="in-{{ declared.name }}">
+            <input
+              type="checkbox"
+              id="in-{{ declared.name }}"
+              name="{{ declared.name }}"
+              {% if field.checked %}checked{% endif %}
+            />
+            {{ declared.label }}
+          </label>
+        {% else %}
+          <label for="in-{{ declared.name }}">{{ declared.label }}</label>
+          {% if declared.kind == "choice" %}
+            <select id="in-{{ declared.name }}" name="{{ declared.name }}">
+              {% for choice in declared.choices %}
+                <option {% if choice == field.raw %}selected{% endif %}>{{ choice }}</option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <input
+              type="number"
+              id="in-{{ declared.name }}"
+              name="{{ declared.name }}"
+              value="{{ field.raw }}"
+              {% if declared.min is not none %}min="{{ declared.min }}"{% endif %}
+              {% if declared.max is not none %}max="{{ declared.max }}"{% endif %}
+              {# No declared step means any figure the user can measure, not the
+                 integers a bare number input would otherwise insist on. #}
+              step="{{ declared.step if declared.step is not none else 'any' }}"
+              {% if field.error %}aria-invalid="true" aria-describedby="err-{{ declared.name }}"{% endif %}
+            />
+          {% endif %}
+          {# `unit` is a display label and nothing else (§4.4, ADR-0006). #}
+          {% if declared.unit %}<span class="unit">{{ declared.unit }}</span>{% endif %}
+        {% endif %}
+        {% if field.error %}
+          <p class="field-error" id="err-{{ declared.name }}">{{ declared.label }} {{ field.error }}</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <button type="submit">Compute</button>
+  </form>
+{% endmacro %}

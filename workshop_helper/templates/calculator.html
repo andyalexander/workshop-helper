@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% import "_inputs.html" as forms %}
+{% import "_result.html" as results %}
+{% block title %}{{ applet.name }} — Workshop Helper{% endblock %}
+{% block content %}
+  <article class="applet calculator">
+    <h2>{{ applet.name }}</h2>
+    <p class="provenance">Root '{{ applet.root.name }}'{% if applet.author %}, by {{ applet.author }}{% endif %}</p>
+    {% if applet.description %}<p class="description">{{ applet.description }}</p>{% endif %}
+    {{ forms.inputs(applet, form) }}
+    <section id="result" class="result">
+      {{ results.result(applet, computation) }}
+    </section>
+  </article>
+{% endblock %}

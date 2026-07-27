@@ -139,3 +139,135 @@ pre.details {
 .documentation svg {
   max-width: 100%;
 }
+
+/* The calculator: a form, then the Result region the round-trip swaps
+   (spec §2.8, §6). The primary Output is large and the rest are small — which
+   one that is comes from the Manifest, never from this file (§4.5). */
+
+.inputs {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.2rem;
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+}
+
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.field label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.field input[type="number"],
+.field select {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font: inherit;
+  padding: 0.2rem 0.4rem;
+  width: 7rem;
+}
+
+.field .unit {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.field.invalid input,
+.field.invalid select {
+  border-color: #a4331f;
+}
+
+/* Carried by the ⚠ and the wording, never by colour alone. */
+.field-error {
+  color: #a4331f;
+  flex-basis: 100%;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.field-error::before {
+  content: "⚠ ";
+}
+
+.inputs button {
+  align-self: center;
+  background: var(--ink);
+  border: 0;
+  border-radius: 4px;
+  color: var(--paper);
+  cursor: pointer;
+  font: inherit;
+  padding: 0.3rem 1rem;
+}
+
+.outputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  margin: 1rem 0;
+}
+
+.output dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.output dd {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.output.primary dd {
+  font-size: 2.2rem;
+  line-height: 1.15;
+}
+
+.output dd .unit {
+  color: var(--muted);
+  font-size: 0.6em;
+}
+
+.awaiting {
+  color: var(--muted);
+}
+
+.result-table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  width: 100%;
+}
+
+.result-table th,
+.result-table td {
+  border-bottom: 1px solid var(--rule);
+  padding: 0.25rem 0.6rem;
+  text-align: left;
+}
+
+/* A tied group is the Applet declining honestly (§11.3): the rows stay
+   together and the discriminator is named once, above them. */
+.result-table tbody.tied {
+  background: var(--grey-paper);
+}
+
+.result-table .flag td {
+  color: #7a4a10;
+  font-size: 0.8rem;
+  padding-top: 0.5rem;
+}
+
+.graphic {
+  margin: 1rem 0;
+}
+
+.graphic svg {
+  max-width: 100%;
+}

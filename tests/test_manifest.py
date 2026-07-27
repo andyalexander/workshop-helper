@@ -17,6 +17,11 @@ from workshop_helper.manifest import (
 )
 
 COMPLETE = """
+outputs = [
+  { name = "setback", label = "Setback", unit = "mm", primary = true },
+  { name = "gain", label = "Gain", unit = "mm" },
+]
+
 [applet]
 type        = "calculator"
 name        = "Pipe-bender setback"
@@ -24,6 +29,13 @@ description = "Setback and offset marks for a lever pipe bender."
 author      = "andy"
 tags        = ["plumbing", "copper", "pipe-bending"]
 """
+
+# The smallest complete calculator head: top-level `outputs` first, per §4.5's
+# ordering rule, then `[applet]`.
+CALCULATOR_HEAD = (
+    'outputs = [{ name = "answer", label = "Answer" }]\n'
+    '[applet]\ntype = "calculator"\nname = "T"\n'
+)
 
 MINIMAL = """
 [applet]
@@ -192,8 +204,7 @@ def test_calibration_on_a_calculator_is_left_to_its_own_ticket(
     manifest = read_manifest(
         _write(
             tmp_path,
-            '[applet]\ntype = "calculator"\nname = "T"\n'
-            "[calibration.values]\nr_centreline = 70.0\n",
+            CALCULATOR_HEAD + "[calibration.values]\nr_centreline = 70.0\n",
         )
     )
     assert manifest.type == "calculator"
@@ -202,6 +213,8 @@ def test_calibration_on_a_calculator_is_left_to_its_own_ticket(
 # --- Inputs and the author's `default` (§4.3) -------------------------------
 
 INPUTS = """
+outputs = [{ name = "setback", label = "Setback", unit = "mm" }]
+
 [applet]
 type = "calculator"
 name = "Pipe-bender setback"
@@ -255,8 +268,7 @@ def test_an_input_may_declare_no_default(tmp_path: Path) -> None:
     manifest = read_manifest(
         _write(
             tmp_path,
-            '[applet]\ntype = "calculator"\nname = "T"\n'
-            '[inputs.angle]\nkind = "number"\nlabel = "Bend angle"\n',
+            CALCULATOR_HEAD + '[inputs.angle]\nkind = "number"\nlabel = "Bend angle"\n',
         )
     )
     (angle,) = manifest.inputs
@@ -282,8 +294,7 @@ def test_a_malformed_input_declaration_raises(
         read_manifest(
             _write(
                 tmp_path,
-                '[applet]\ntype = "calculator"\nname = "T"\n'
-                f"[inputs.thing]\n{declaration}\n",
+                CALCULATOR_HEAD + f"[inputs.thing]\n{declaration}\n",
             )
         )
 
@@ -304,6 +315,14 @@ def test_a_malformed_input_declaration_raises(
             'kind = "number"\nlabel = "A"\nstep = 1\ndefault = 90.5',
             "step = 1 means integer",
         ),
+        (
+            'kind = "number"\nlabel = "A"\nstep = 0.5\ndefault = 90.3',
+            "off a finer grid — the case #33 deferred to this ticket",
+        ),
+        (
+            'kind = "number"\nlabel = "A"\nmin = 0.1\nstep = 0.5\ndefault = 1.0',
+            "on the 0-grid but not the min-anchored one",
+        ),
         ('kind = "number"\nlabel = "A"\ndefault = "90"', "a string, not a number"),
         ('kind = "number"\nlabel = "A"\ndefault = true', "a bool, not a number"),
         ('kind = "bool"\nlabel = "A"\ndefault = "yes"', "not a bool"),
@@ -318,8 +337,7 @@ def test_an_invalid_author_default_is_a_malformed_manifest(
         read_manifest(
             _write(
                 tmp_path,
-                '[applet]\ntype = "calculator"\nname = "T"\n'
-                f"[inputs.thing]\n{declaration}\n",
+                CALCULATOR_HEAD + f"[inputs.thing]\n{declaration}\n",
             )
         )
 
@@ -337,6 +355,139 @@ def test_the_inputs_pool_must_be_a_table_of_tables(tmp_path: Path, pool: str) ->
         read_manifest(
             _write(
                 tmp_path,
-                f'{pool}\n[applet]\ntype = "calculator"\nname = "T"\n',
+                f"{pool}\n" + CALCULATOR_HEAD,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("declaration", "grid"),
+    [
+        ("step = 0.5\ndefault = 90.5", "0.5 from 0"),
+        ("min = 0.1\nstep = 0.5\ndefault = 1.1", "0.5 from the declared min"),
+        ("min = 0\nmax = 180\nstep = 1\ndefault = 90", "whole numbers"),
+        ("step = 0.05\ndefault = 1.15", "float arithmetic that must still land"),
+    ],
+)
+def test_a_default_on_the_step_grid_is_accepted(
+    tmp_path: Path, declaration: str, grid: str
+) -> None:
+    """The anchor is `min`, else 0 — the browser's own rule for a stepper."""
+    manifest = read_manifest(
+        _write(
+            tmp_path,
+            CALCULATOR_HEAD + f'[inputs.thing]\nkind = "number"\nlabel = "A"\n'
+            f"{declaration}\n",
+        )
+    )
+
+    assert manifest.inputs[0].default is not None
+
+
+def test_a_step_of_zero_or_less_is_not_a_grid(tmp_path: Path) -> None:
+    with pytest.raises(ManifestError, match="step"):
+        read_manifest(
+            _write(
+                tmp_path,
+                CALCULATOR_HEAD
+                + '[inputs.thing]\nkind = "number"\nlabel = "A"\nstep = 0\ndefault = 1\n',
+            )
+        )
+
+
+# --- Outputs, and which one is large (§4.5, §4.6, §6) -----------------------
+
+
+def test_reads_the_declared_outputs_in_display_order(tmp_path: Path) -> None:
+    setback, gain = read_manifest(_write(tmp_path, COMPLETE)).outputs
+
+    assert (setback.name, setback.label, setback.unit) == ("setback", "Setback", "mm")
+    assert setback.primary is True
+    assert (gain.name, gain.unit, gain.primary) == ("gain", "mm", False)
+
+
+def test_a_lone_output_is_primary_without_saying_so(tmp_path: Path) -> None:
+    """Nothing to choose between, so requiring the flag would be ceremony (§1.7)."""
+    (only,) = read_manifest(_write(tmp_path, CALCULATOR_HEAD)).outputs
+
+    assert only.primary is True
+
+
+@pytest.mark.parametrize(
+    ("outputs", "because"),
+    [
+        ("outputs = []", "no Outputs at all"),
+        ('outputs = "setback"', "not a list"),
+        ('outputs = [{ label = "Setback" }]', "no name"),
+        ('outputs = [{ name = "setback" }]', "no label"),
+        (
+            'outputs = [{ name = "s", label = "S", primary = "yes" }]',
+            "non-bool primary",
+        ),
+        (
+            'outputs = [{ name = "s", label = "S" }, { name = "g", label = "G" }]',
+            "several Outputs and no primary among them",
+        ),
+        (
+            (
+                'outputs = [{ name = "s", label = "S", primary = true },'
+                ' { name = "g", label = "G", primary = true }]'
+            ),
+            "two headlines",
+        ),
+        (
+            'outputs = [{ name = "s", label = "S" }, { name = "s", label = "Again" }]',
+            "the same name twice",
+        ),
+        (
+            'outputs = [{ name = "s", label = "S", units = "mm" }]',
+            "a key this schema does not define",
+        ),
+    ],
+)
+def test_a_malformed_outputs_declaration_raises(
+    tmp_path: Path, outputs: str, because: str
+) -> None:
+    with pytest.raises(ManifestError):
+        read_manifest(
+            _write(
+                tmp_path,
+                f'{outputs}\n[applet]\ntype = "calculator"\nname = "T"\n',
+            )
+        )
+
+
+def test_a_calculator_without_outputs_is_malformed(tmp_path: Path) -> None:
+    """It could render a form and never a Result, which is incomplete (§6)."""
+    with pytest.raises(ManifestError, match="outputs"):
+        read_manifest(_write(tmp_path, '[applet]\ntype = "calculator"\nname = "T"\n'))
+
+
+def test_an_unknown_key_inside_an_input_is_rejected_not_ignored(
+    tmp_path: Path,
+) -> None:
+    """The only defence against §4.5's silent misparse of a top-level key."""
+    with pytest.raises(ManifestError, match="unknown key 'outputs'"):
+        read_manifest(
+            _write(
+                tmp_path,
+                '[applet]\ntype = "calculator"\nname = "T"\n'
+                '[inputs.angle]\nkind = "number"\nlabel = "A"\n'
+                'outputs = [{ name = "s", label = "S" }]\n',
+            )
+        )
+
+
+@pytest.mark.parametrize("key", ["inputs", "outputs", "calibration"])
+def test_a_documentation_applet_declares_no_compute_machinery(
+    tmp_path: Path, key: str
+) -> None:
+    """It has no `compute()`, so each of these declares something impossible."""
+    with pytest.raises(ManifestError, match=key):
+        read_manifest(
+            _write(
+                tmp_path,
+                '[applet]\ntype = "documentation"\nname = "T"\n'
+                f'[{key}.thing]\nkind = "number"\nlabel = "A"\n',
             )
         )
