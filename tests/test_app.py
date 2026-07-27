@@ -113,11 +113,14 @@ def test_an_unknown_applet_id_is_not_found() -> None:
     assert client_for(Index()).get("/a/nobody").status_code == 404
 
 
-def test_a_calculator_is_not_renderable_yet(tmp_path: Path) -> None:
-    """Calculator rendering — form, lazy import, Result — arrives with #35."""
+def test_a_calculator_renders_from_its_own_manifest(tmp_path: Path) -> None:
+    """The calculator page itself is `test_calculator.py`; this is the routing."""
     index = Index(applets=[_calculator(tmp_path)])
 
-    assert client_for(index).get("/a/pipe-bender").status_code == 501
+    response = client_for(index).get("/a/pipe-bender")
+
+    assert response.status_code == 200
+    assert "Pipe-bender setback" in response.get_data(as_text=True)
 
 
 # --- The greyed, un-openable card (§10.1, §10.3) ------------------------------

@@ -26,7 +26,9 @@ from workshop_helper.errors import ErrorSurface, error_surface
 from workshop_helper.manifest import (
     DOCUMENTATION,
     MANIFEST_FILENAME,
+    Input,
     ManifestError,
+    Output,
     read_identity,
     read_manifest,
 )
@@ -44,6 +46,10 @@ class Applet:
     ``None`` for a calculator. It is a real requirement, not a cache: #2's search
     falls back to full text over name + description + tags + content body, so the
     Host must read Applet content, not just Manifests (§2.6).
+
+    ``inputs`` and ``outputs`` are a calculator's declared schema, carried here so
+    that rendering a form is a lookup in the index and never a second read of a
+    file that may have changed underneath it.
     """
 
     id: str
@@ -55,6 +61,8 @@ class Applet:
     author: str | None = None
     tags: tuple[str, ...] = ()
     body: str | None = None
+    inputs: tuple[Input, ...] = ()
+    outputs: tuple[Output, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -209,6 +217,8 @@ def _read_applet(folder: Path, root: Root) -> Applet | Fault:
         author=manifest.author,
         tags=manifest.tags,
         body=body,
+        inputs=manifest.inputs,
+        outputs=manifest.outputs,
     )
 
 

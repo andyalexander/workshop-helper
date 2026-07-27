@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Workshop Helper{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
+    {# htmx 2.0.10, vendored and served from the Host — this runs offline in a
+       workshop, so there is no CDN (library-stack §5). Everything works without
+       it; it only upgrades the compute POST into a fragment swap. #}
+    <script src="{{ url_for('static', filename='htmx.min.js') }}" defer></script>
   </head>
   <body>
     <header>

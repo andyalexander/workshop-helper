@@ -1,0 +1,49 @@
+# Top-level keys come first — TOML's own scoping rule, and the Host rejects an
+# unrecognised key inside [inputs.*] because writing `outputs` after the first
+# table header parses silently as part of that table (spec §4.5).
+outputs = [
+  { name = "pitch_mm", label = "Pitch, normalised", unit = "mm", primary = true },
+  { name = "candidates", label = "Candidates" },
+]
+
+[applet]
+type        = "calculator"
+name        = "Thread finder"
+description = "Identify an unknown thread from a caliper and a pitch gauge."
+author      = "andy"
+tags        = ["fastener", "thread", "workshop"]
+
+# Both measurements are defaulted, so every Input is, so the Applet computes on
+# open (§4.6, §11.5) — it opens on M6 coarse, the commonest thread on the bench,
+# and shows what a filled-in answer looks like before you have measured anything.
+[inputs.diameter]
+kind    = "number"
+label   = "Major diameter"
+unit    = "mm"
+min     = 0.5
+max     = 70
+default = 6
+
+[inputs.pitch]
+kind    = "number"
+label   = "Pitch"
+min     = 0.1
+max     = 100
+default = 1
+
+# Dual-unit entry exists to protect the exact axis (#27): hand-converting a TPI
+# gauge leaf would round 25.4/20 to 1.3 and inject noise into the one axis the
+# ranking gates on. The conversion happens inside compute(), because `unit` is a
+# display label and the Host ships no unit model (§4.4, ADR-0006).
+[inputs.pitch_unit]
+kind    = "choice"
+label   = "Pitch measured in"
+choices = ["mm", "TPI"]
+default = "mm"
+
+# Default-off, and load-bearing: the finder's real job is an *unknown* fastener
+# off old kit, so BSW, BA and UNF must show unless suppressed (§11.3).
+[inputs.metric_only]
+kind    = "bool"
+label   = "ISO metric only"
+default = false

@@ -1,0 +1,57 @@
+{% import "_error_surface.html" as surfaces %}
+
+{# The Result region (spec §6). The Applet returned raw values; every label,
+   unit and size decision here is the Manifest's, applied by the Host.
+
+   Three states, and the third is not a failure: no Result yet, on an Applet that
+   does not compute on open (§4.6). #}
+{% macro result(applet, computation) %}
+  {% if computation.surface %}
+    {# A compute-time fault renders on the Applet page, through the one surface
+       every fault shares (§10.2, §10.3). #}
+    {{ surfaces.error_surface(computation.surface) }}
+  {% elif computation.result %}
+    <dl class="outputs">
+      {% for output, value in computation.shown(applet.outputs) %}
+        <div class="output {{ 'primary' if output.primary }}">
+          <dt>{{ output.label }}</dt>
+          <dd>{{ value | figure }}{% if output.unit %} <span class="unit">{{ output.unit }}</span>{% endif %}</dd>
+        </div>
+      {% endfor %}
+    </dl>
+
+    {% set table = computation.result.table %}
+    {% if table %}
+      <table class="result-table">
+        <thead>
+          <tr>{% for column in table.columns %}<th scope="col">{{ column }}</th>{% endfor %}</tr>
+        </thead>
+        {# A flagged group is the Applet declining honestly: it names the
+           discriminator over rows it cannot separate, never a silent winner
+           (§11.3). The grouping is the Applet's, not an inference here. #}
+        {% for group in table.groups() %}
+          <tbody class="{{ 'tied' if group.flag }}">
+            {% if group.flag %}
+              <tr class="flag">
+                <td colspan="{{ table.columns | length }}"><span aria-hidden="true">⚠</span> {{ group.flag }}</td>
+              </tr>
+            {% endif %}
+            {% for row in group.rows %}
+              <tr>{% for cell in row.cells %}<td>{{ cell | figure }}</td>{% endfor %}</tr>
+            {% endfor %}
+          </tbody>
+        {% endfor %}
+      </table>
+    {% endif %}
+
+    {# An SVG string the Applet built itself; the Host ships no graphics
+       dependency (§6.1). And `html` is embedded verbatim, promising nothing
+       (§1.3) — it is the pressure valve, not a rendering contract. #}
+    {% if computation.result.graphic %}
+      <figure class="graphic">{{ computation.result.graphic | safe }}</figure>
+    {% endif %}
+    {% if computation.result.html %}{{ computation.result.html | safe }}{% endif %}
+  {% else %}
+    <p class="awaiting">Fill in the Inputs and press Compute.</p>
+  {% endif %}
+{% endmacro %}

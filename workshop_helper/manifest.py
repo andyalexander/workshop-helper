@@ -9,11 +9,15 @@ raised as :class:`ManifestError` carrying a human-readable reason, and discovery
 turns that reason into a greyed card (§10.1).
 
 The Manifest declares **structure, never logic** (§1.1), so this module reads
-declarations and checks them against themselves. It does not build a form and it
-does not validate a *user's* value — that is #35's static validation, gated
-behind the same declarations.
+declarations and checks them against themselves. It does not build a form — that
+is :mod:`workshop_helper.form` — but the *rules* a value is checked against live
+here, in :func:`constraint_violation`, and are applied to the author's ``default``
+and to the user's typed value alike. One rule, one place: a default the Host
+accepts and the same figure rejected in the form is the bug that split rule
+invites (#33).
 """
 
+import math
 import tomllib
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -33,6 +37,20 @@ INPUT_KINDS = frozenset({NUMBER, CHOICE, BOOL})
 
 CALIBRATION_KEY = "calibration"
 INPUTS_KEY = "inputs"
+OUTPUTS_KEY = "outputs"
+
+# An unrecognised key inside `[inputs.*]` is rejected, not ignored, because of
+# TOML's own scoping rule (§4.5): a top-level `outputs` written *after* the first
+# table header parses as a key of that table. That is valid TOML and a silently
+# wrong document, and this check is the only thing that turns it into a named
+# fault rather than a mysteriously absent Output list.
+INPUT_KEYS = frozenset(
+    {"kind", "label", "unit", "default", "min", "max", "step", "choices"}
+)
+OUTPUT_KEYS = frozenset({"name", "label", "unit", "primary"})
+
+# Grid arithmetic is float arithmetic: 0.1 + 0.2 must land on a 0.1 grid.
+GRID_TOLERANCE = 1e-9
 
 
 class ManifestError(Exception):
@@ -59,6 +77,20 @@ class Input:
 
 
 @dataclass(frozen=True)
+class Output:
+    """One declared Output: a name ``compute()`` must return a value under.
+
+    The Applet returns raw values; the label, the unit and *which one is large*
+    are declared here and applied by the Host (§4.5, §6).
+    """
+
+    name: str
+    label: str
+    unit: str | None = None
+    primary: bool = False
+
+
+@dataclass(frozen=True)
 class Manifest:
     """An Applet's declaration about itself.
 
@@ -72,6 +104,7 @@ class Manifest:
     author: str | None = None
     tags: tuple[str, ...] = ()
     inputs: tuple[Input, ...] = ()
+    outputs: tuple[Output, ...] = ()
 
 
 def read_manifest(path: Path) -> Manifest:
@@ -82,13 +115,17 @@ def read_manifest(path: Path) -> Manifest:
     type_ = _required_string(applet, "type")
     if type_ not in APPLET_TYPES:
         raise ManifestError(f"unknown Applet type {type_!r}")
-    if type_ == DOCUMENTATION and CALIBRATION_KEY in document:
-        # Malformed, not ignored (#15, §3.1): a documentation Applet has no
-        # compute() to receive calibration, and interpolating it into content.md
-        # would be a template language (§1.1).
-        raise ManifestError(
-            f"[{CALIBRATION_KEY}] is not allowed on a {DOCUMENTATION} Applet"
-        )
+    if type_ == DOCUMENTATION:
+        # Malformed, not ignored (#15, §3.1). A documentation Applet has no
+        # compute(): nothing would receive an Input, nothing would produce an
+        # Output, and interpolating calibration into content.md would be a
+        # template language (§1.1). Each of these declares something that cannot
+        # happen, so each is a mistake worth naming.
+        for key in (CALIBRATION_KEY, INPUTS_KEY, OUTPUTS_KEY):
+            if key in document:
+                raise ManifestError(
+                    f"{key!r} is not allowed on a {DOCUMENTATION} Applet"
+                )
 
     return Manifest(
         type=type_,
@@ -97,6 +134,7 @@ def read_manifest(path: Path) -> Manifest:
         author=_optional_string(applet, "author"),
         tags=_tags(applet),
         inputs=_inputs(document),
+        outputs=_outputs(document) if type_ == CALCULATOR else (),
     )
 
 
@@ -190,11 +228,71 @@ def _inputs(document: dict[str, object]) -> tuple[Input, ...]:
     return tuple(_input(name, declaration) for name, declaration in pool.items())
 
 
+def _outputs(document: dict[str, object]) -> tuple[Output, ...]:
+    """Read the top-level `outputs` list of a single-mode calculator (§4.6).
+
+    A calculator that declares no Outputs can render a form and never a Result,
+    so an empty list is incomplete rather than minimal. Per-mode Outputs are #36;
+    when they arrive, this becomes the no-`[modes]` branch of the same rule.
+    """
+    declared = document.get(OUTPUTS_KEY)
+    if not isinstance(declared, list) or not declared:
+        raise ManifestError(
+            f"a {CALCULATOR} needs a non-empty top-level {OUTPUTS_KEY!r} list"
+        )
+    outputs = tuple(_output(entry) for entry in declared)
+
+    names = [output.name for output in outputs]
+    duplicated = {name for name in names if names.count(name) > 1}
+    if duplicated:
+        raise ManifestError(f"{OUTPUTS_KEY} declares {duplicated.pop()!r} twice")
+    return _with_primary(outputs)
+
+
+def _with_primary(outputs: tuple[Output, ...]) -> tuple[Output, ...]:
+    """Settle which Output the Host renders large (§4.5).
+
+    Exactly one is primary. A lone Output is it without saying so: there is
+    nothing for the flag to choose between, and requiring it would be ceremony
+    (§1.7). Two primaries, or none among several, is a headline the author has
+    not chosen — the Host will not choose it for them.
+    """
+    primary = [output for output in outputs if output.primary]
+    if len(primary) > 1:
+        raise ManifestError(f"{OUTPUTS_KEY} declares more than one primary Output")
+    if not primary:
+        lone, *rest = outputs
+        if rest:
+            raise ManifestError(f"{OUTPUTS_KEY} declares no primary Output")
+        return (replace(lone, primary=True),)
+    return outputs
+
+
+def _output(entry: object) -> Output:
+    """Read and self-check one entry of the `outputs` list."""
+    if not isinstance(entry, dict):
+        raise ManifestError(f"each {OUTPUTS_KEY} entry must be a table")
+    name = _required_string(entry, "name")
+    where = f"{OUTPUTS_KEY} {name!r}"
+    _reject_unknown_keys(entry, OUTPUT_KEYS, where)
+
+    primary = entry.get("primary", False)
+    if not isinstance(primary, bool):
+        raise ManifestError(f"{where} 'primary' must be true or false")
+    return Output(
+        name=name,
+        label=_required_string(entry, "label"),
+        unit=_optional_string(entry, "unit"),
+        primary=primary,
+    )
+
+
 def _input(name: str, declaration: object) -> Input:
     """Read and self-check one `[inputs.<name>]` declaration."""
     where = f"[{INPUTS_KEY}.{name}]"
     if not isinstance(declaration, dict):
         raise ManifestError(f"{where} must be a table")
+    _reject_unknown_keys(declaration, INPUT_KEYS, where)
 
     kind = _required_string(declaration, "kind")
     if kind not in INPUT_KINDS:
@@ -207,7 +305,7 @@ def _input(name: str, declaration: object) -> Input:
         unit=_optional_string(declaration, "unit"),
         min=_optional_number(declaration, "min", where),
         max=_optional_number(declaration, "max", where),
-        step=_optional_number(declaration, "step", where),
+        step=_step(declaration, where),
         choices=_choices(declaration, kind, where),
     )
     return replace(declared, default=_default(declaration, declared, where))
@@ -225,6 +323,20 @@ def _choices(declaration: dict[str, object], kind: str, where: str) -> tuple[str
     ):
         raise ManifestError(f"{where} needs a non-empty list of string choices")
     return tuple(choices)
+
+
+def _step(declaration: dict[str, object], where: str) -> float | None:
+    """Read `step`, which is a grid and therefore has to be a positive number.
+
+    Checked here at scan, not where the grid is applied: a Manifest the Host
+    cannot validate against is a greyed card (§10.1), and leaving it to the first
+    compute would turn an authoring mistake into a mid-request failure on a card
+    that looked perfectly healthy.
+    """
+    step = _optional_number(declaration, "step", where)
+    if step is not None and step <= 0:
+        raise ManifestError(f"{where} step must be greater than zero, not {step}")
+    return step
 
 
 def _optional_number(
@@ -269,16 +381,56 @@ def _number_default(value: object, declared: Input, where: str) -> float:
     """Check a `number` Input's default against its own bounds and step (§4.3)."""
     if not _is_number(value):
         _reject_default(where, value, "must be a number")
-    if declared.min is not None and value < declared.min:
-        _reject_default(where, value, f"is below min {declared.min}")
-    if declared.max is not None and value > declared.max:
-        _reject_default(where, value, f"is above max {declared.max}")
-    # `step = 1` means integer (§4.3). Checking a default against a finer grid
-    # needs an anchor the spec does not fix, so it waits for #35's static
-    # validation, which has to answer that question for user values anyway.
-    if declared.step == 1 and value != int(value):
-        _reject_default(where, value, "must be a whole number when step = 1")
+    violation = constraint_violation(declared, value)
+    if violation is not None:
+        _reject_default(where, value, violation)
     return value
+
+
+def constraint_violation(declared: Input, value: float) -> str | None:
+    """Why ``value`` is not admissible for ``declared``, or ``None`` if it is.
+
+    The single rule for `min`/`max`/`step`, applied to the author's ``default``
+    at scan and to the user's typed value before ``compute()`` runs (§4.3).
+
+    **The `step` grid is anchored at `min`, else at 0** — the browser's own rule
+    for ``<input type="number">``. Anchoring it anywhere else would let the
+    stepper offer a value the Host then rejects, which is the same figure being
+    valid in the widget and invalid in the Host. `step = 1` ⇒ integer falls out
+    of this rule unchanged whenever `min` is itself whole.
+
+    ``declared`` has been through :func:`read_manifest`, so `step` is a positive
+    number or absent. This never raises: it reports on a *value*, and a Manifest
+    the Host cannot work with was refused at scan.
+    """
+    if declared.min is not None and value < declared.min:
+        return f"must be {declared.min} or more"
+    if declared.max is not None and value > declared.max:
+        return f"must be {declared.max} or less"
+    if declared.step is None:
+        return None
+
+    anchor = declared.min if declared.min is not None else 0
+    if _on_grid(value, declared.step, anchor):
+        return None
+    if declared.step == 1 and anchor == int(anchor):
+        return "must be a whole number, because step = 1 means integer"
+    return f"must be a multiple of {declared.step} from {anchor}"
+
+
+def _on_grid(value: float, step: float, anchor: float) -> bool:
+    """Whether ``value`` sits on the ``step`` grid anchored at ``anchor``."""
+    steps = (value - anchor) / step
+    return math.isclose(steps, round(steps), abs_tol=GRID_TOLERANCE)
+
+
+def _reject_unknown_keys(
+    declaration: dict[str, object], allowed: frozenset[str], where: str
+) -> None:
+    """Refuse a key this schema does not define (§4.5's ordering rule)."""
+    unknown = sorted(set(declaration) - allowed)
+    if unknown:
+        raise ManifestError(f"{where} has an unknown key {unknown[0]!r}")
 
 
 def _reject_default(where: str, value: object, reason: str) -> NoReturn:
