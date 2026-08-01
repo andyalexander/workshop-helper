@@ -562,11 +562,18 @@ parses as `calibration.values.22mm.default_mode`. That is **valid TOML and a
 silently wrong document**: no parse error, and the Host simply sees no
 `default_mode`.
 
-The Host must therefore **reject an unrecognised key inside `[inputs.*]`,
-`[modes.*]` and `[calibration.values.*]` as a malformed Manifest** (§10.1), rather
-than ignoring it. That check is what converts this from a silent misparse into a
-greyed card naming the file. It is cheap, and it is the only defence — the author
-cannot see the difference by reading their own file.
+The Host must therefore **reject an unrecognised key inside `[applet]`,
+`[inputs.*]`, `[modes.*]`, `[calibration]` and `[calibration.values.*]` as a
+malformed Manifest** (§10.1), rather than ignoring it. That check is what converts
+this from a silent misparse into a greyed card naming the file. It is cheap, and
+it is the only defence — the author cannot see the difference by reading their own
+file.
+
+`[applet]` is on that list because it is the **first table header in every
+Manifest**, and therefore the table a stray top-level key most often lands in.
+`[calibration.values.*]` is the one place the check cannot be an allow-list, since
+the field names are the author's: there, the two top-level scalars are named
+instead.
 
 ### 4.6 The degenerate cases
 
@@ -577,7 +584,7 @@ Three of this spec's contracts are defined so that the simple thing is the
 |---|---|
 | Single-mode calculator | No `[modes]`; top-level `inputs` + `outputs`; `compute(inputs)`. |
 | Uncalibrated calculator | No `[calibration]`; `compute()` takes no `calibration` argument. |
-| Unkeyed calibration | `[calibration]` with no `keyed_by`; a flat table. |
+| Unkeyed calibration | `[calibration]` with no `keyed_by`; a flat `[calibration.values]` table. |
 | **Static** calculator | **Zero Inputs.** It computes on open and shows a Result. |
 
 **The Host computes on open iff every Input has a default** — which makes the
@@ -630,21 +637,29 @@ r_centreline = 110.0
 The fixed `values` level exists so a key can **never** collide with a metadata
 field such as `keyed_by`.
 
-`keyed_by` is **optional** — omitted means a flat table (§4.6). **Exactly one key
-is permitted; multi-key is refused**, because a two-dimensional lookup is a lookup
-*table* wearing a hat, which is reference data arriving by the side door (§1.1).
+`keyed_by` is **optional** — omitted means a flat table (§4.6), which is
+`[calibration.values]` written directly, **the `values` level being there either
+way**. That is what leaves `[calibration]` itself with exactly two admissible
+keys, and it is what makes a typo'd `keyd_by` a named fault rather than a table
+read as flat. **Exactly one key is permitted; multi-key is refused**, because a
+two-dimensional lookup is a lookup *table* wearing a hat, which is reference data
+arriving by the side door (§1.1).
 
 **The Host branches on `keyed_by`'s *presence*, never on the shape of what follows.**
 A typo'd `keyd_by` must be loud, not silently treated as a flat table.
 
 ### 5.3 Discovery-time validation
 
-Four rules, all producing a greyed card (§10.1):
+Five rules, all producing a greyed card (§10.1):
 
 1. `keyed_by` names an **existing** Input.
 2. That Input is a **`choice`**.
 3. **The key set equals the choice set exactly, in both directions.**
 4. **The table is rectangular** — every key carries the same field names.
+5. **Every mode uses that Input** (#36). It follows from §5.4 rather than
+   standing on its own: the Host resolves the slice, so a mode that cannot select
+   a key is a mode with no slice to hand `compute()` — and it would fail in that
+   mode alone, for whoever opened it.
 
 Rule 4 is the non-obvious one. A ragged table makes the *shape* of the resolved
 dict depend on the user's selection — a `KeyError` that fires only for the person
@@ -1258,5 +1273,4 @@ Reasoning lives in these; this document restates only their conclusions.
 [`thread-series-data.md`](../research/thread-series-data.md)
 
 **Authoring** — [`calculator-modes.md`](../authoring/calculator-modes.md)
-(⚠️ predates #17/#22 — its `r_outside` field name and its `28mm` row are both
-superseded by §11.2).
+(reconciled with §11.2 and with the `pipe-bender` as it ships).

@@ -268,6 +268,18 @@ pre.details {
   margin: 1rem 0;
 }
 
+/* The Applet's SVG carries a viewBox and no size of its own — the Host decides
+   how big a drawing is, exactly as it decides how a number is formatted. */
 .graphic svg {
+  height: auto;
   max-width: 100%;
+  width: 100%;
+}
+
+/* The derived mode selector reads as a choice about the tool, not as an Input:
+   there is no `mode` Input, and the form should not suggest there is. */
+.field.mode {
+  border-right: 1px solid var(--rule);
+  margin-right: 0.4rem;
+  padding-right: 1.2rem;
 }

@@ -487,7 +487,23 @@ def test_an_unknown_key_inside_an_input_is_rejected_not_ignored(
         )
 
 
-@pytest.mark.parametrize("key", ["inputs", "outputs", "calibration"])
+def test_an_unknown_key_inside_the_applet_section_is_rejected_too(
+    tmp_path: Path,
+) -> None:
+    """`[applet]` is the *first* table header, so it swallows the most (§4.5)."""
+    with pytest.raises(ManifestError, match="unknown key 'default_mode'"):
+        read_manifest(
+            _write(
+                tmp_path,
+                '[applet]\ntype = "calculator"\nname = "T"\n'
+                'default_mode = "single_bend"\n'
+                '[modes.single_bend]\nlabel = "S"\n'
+                'outputs = [{ name = "s", label = "S" }]\n',
+            )
+        )
+
+
+@pytest.mark.parametrize("key", ["inputs", "outputs", "calibration", "modes"])
 def test_a_documentation_applet_declares_no_compute_machinery(
     tmp_path: Path, key: str
 ) -> None:

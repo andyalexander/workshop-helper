@@ -5,14 +5,14 @@
 
    Three states, and the third is not a failure: no Result yet, on an Applet that
    does not compute on open (§4.6). #}
-{% macro result(applet, computation) %}
+{% macro result(mode, computation) %}
   {% if computation.surface %}
     {# A compute-time fault renders on the Applet page, through the one surface
        every fault shares (§10.2, §10.3). #}
     {{ surfaces.error_surface(computation.surface) }}
   {% elif computation.result %}
     <dl class="outputs">
-      {% for output, value in computation.shown(applet.outputs) %}
+      {% for output, value in computation.shown(mode.outputs) %}
         <div class="output {{ 'primary' if output.primary }}">
           <dt>{{ output.label }}</dt>
           <dd>{{ value | figure }}{% if output.unit %} <span class="unit">{{ output.unit }}</span>{% endif %}</dd>
@@ -45,10 +45,20 @@
     {% endif %}
 
     {# An SVG string the Applet built itself; the Host ships no graphics
-       dependency (§6.1). And `html` is embedded verbatim, promising nothing
-       (§1.3) — it is the pressure valve, not a rendering contract. #}
-    {% if computation.result.graphic %}
-      <figure class="graphic">{{ computation.result.graphic | safe }}</figure>
+       dependency (§6.1). A PNG data URI is also accepted (§6), and is the one
+       case that cannot be embedded verbatim — it is a URL, so it needs an
+       `<img>` around it or it renders as the text of one.
+       And `html` is embedded verbatim, promising nothing (§1.3) — it is the
+       pressure valve, not a rendering contract. #}
+    {% set graphic = computation.result.graphic %}
+    {% if graphic %}
+      <figure class="graphic">
+        {%- if graphic.startswith("data:") -%}
+          <img src="{{ graphic }}" alt="" />
+        {%- else -%}
+          {{ graphic | safe }}
+        {%- endif -%}
+      </figure>
     {% endif %}
     {% if computation.result.html %}{{ computation.result.html | safe }}{% endif %}
   {% else %}

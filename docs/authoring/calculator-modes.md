@@ -96,11 +96,15 @@ outputs = [
 label   = "Step (offset)"
 inputs  = ["size", "angle", "offset"]
 outputs = [
-  { name = "mark_distance",    label = "Distance between marks", unit = "mm", primary = true },
-  { name = "setback_per_bend", label = "Setback per bend",       unit = "mm" },
-  { name = "min_step",         label = "Smallest step at this angle", unit = "mm" },
+  { name = "mark_distance", label = "Distance between marks", unit = "mm", primary = true },
+  { name = "gain",          label = "Gain, per bend",         unit = "mm" },
+  { name = "min_step",      label = "Smallest step at this angle", unit = "mm" },
 ]
 ```
+
+The Applet that ships is this one — read
+[`workshop_helper/applets/pipe-bender/`](../../workshop_helper/applets/pipe-bender/)
+alongside this guide.
 
 ### Why Inputs live in a pool
 
@@ -122,11 +126,16 @@ between modes because each mode names its own primary — `setback` for a single
 
 ### The selector is derived — don't declare it
 
-You do **not** write a `mode` Input. The Host reads your `[modes.*]` sections and
-renders the selector from their `label`s automatically. This keeps the modes as the
-single source of truth: you cannot declare a mode and forget to add it to a
-selector, because there is no separate selector to keep in sync. Set `default_mode`
-to the mode active when the Applet opens (it defaults to the first one declared).
+You do **not** write a `mode` Input — and if you do, the Host refuses the Manifest
+and greys the card. The Host reads your `[modes.*]` sections and renders the
+selector from their `label`s automatically. This keeps the modes as the single
+source of truth: you cannot declare a mode and forget to add it to a selector,
+because there is no separate selector to keep in sync. Set `default_mode` to the
+mode active when the Applet opens (it defaults to the first one declared).
+
+Changing mode re-runs the calculation. An Input **both** modes use keeps whatever
+the user had typed — it is the same Input — and an Input only the new mode has
+opens on its declared default.
 
 ### The ordering rule — the trap that costs an afternoon
 
@@ -178,17 +187,18 @@ def compute(mode: str, inputs: dict, calibration: dict) -> Result:
 
     if mode == "step":
         offset = inputs["offset"]
-        mark_distance = offset / sin(radians(angle))
         # A step can be geometrically impossible: refuse, don't round (issue #8).
-        min_step = ...  # smallest achievable step at this angle; uses OD[size]
+        min_step = 2 * r_centreline * (1 - cos(radians(angle)))
         if offset < min_step:
             raise InvalidInput(
-                f"Offset must be at least {min_step:.0f}mm at {angle}°.",
-                inputs=["offset"],
+                f"A {offset:g}mm step is not achievable at {angle:g}° — the "
+                f"smallest is {min_step:.0f}mm.",
+                inputs=["offset", "angle"],
             )
+        gain = 2 * r_centreline * tan(radians(angle) / 2) - r_centreline * radians(angle)
         return Result(outputs={
-            "mark_distance": mark_distance,
-            "setback_per_bend": r_centreline * tan(radians(angle) / 2),
+            "mark_distance": offset / sin(radians(angle)) - gain,
+            "gain": gain,
             "min_step": min_step,
         })
 ```
@@ -237,9 +247,13 @@ someone select a combination that cannot physically exist.
 If there is only ever one value, omit `keyed_by` and write a flat table:
 
 ```toml
-[calibration]
+[calibration.values]
 backlash = 0.04
 ```
+
+The `values` level is always there, keyed or not. It is what stops a calibration
+key ever colliding with a metadata field — and it is why a typo'd `keyd_by` is a
+greyed card rather than a table silently treated as flat.
 
 **Exactly one key.** There is no `keyed_by = ["size", "grade"]` — a two-dimensional
 table is a lookup table, which is reference data, which belongs in Python.
@@ -248,9 +262,10 @@ table is a lookup table, which is reference data, which belongs in Python.
 
 At discovery the Host verifies that `keyed_by` names an Input that exists, that it
 is a `choice`, that **the calibration keys and the choice values match exactly in
-both directions**, and that every key offers **the same field names**. Any of these
-failing is a malformed Manifest: the Applet is greyed out and cannot be opened
-(issue #8).
+both directions**, and that every key offers **the same field names**. It also
+checks that **every mode uses that Input** — a mode that cannot select a key is a
+mode the Host has no slice to resolve. Any of these failing is a malformed
+Manifest: the Applet is greyed out and cannot be opened (issue #8).
 
 **Both directions is the demanding half, and it decides what your Inputs may
 offer.** The bender above lists `15mm` and `22mm` only, because those are the two
@@ -362,5 +377,6 @@ appears.**
 - [ ] `keyed_by` names a `choice` Input, and the calibration keys match its choices
       exactly — no spare formers, no missing ones.
 - [ ] Every calibration key offers the same field names.
+- [ ] Every mode uses the `keyed_by` Input, so there is always a slice to resolve.
 - [ ] Returned Output names match the active mode exactly.
 - [ ] Impossible-but-typed input raises `InvalidInput`, not a bare error.

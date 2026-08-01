@@ -46,13 +46,13 @@ def _find(
     assert applet is not None
     return run_compute(
         applet,
+        applet.mode(),
         {
             "diameter": diameter,
             "pitch": pitch,
             "pitch_unit": pitch_unit,
             "metric_only": metric_only,
         },
-        applet.outputs,
     )
 
 

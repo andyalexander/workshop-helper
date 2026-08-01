@@ -245,7 +245,25 @@ def test_an_invalid_value_never_reaches_compute(tmp_path: Path) -> None:
     assert "must be 180 or less" in body
 
 
-def test_a_missing_input_is_a_refusal_not_a_none(tmp_path: Path) -> None:
+def test_a_blank_input_is_a_refusal_not_a_none(tmp_path: Path) -> None:
+    exploding = "def compute(inputs):\n    raise AssertionError('compute() ran')\n"
+
+    body = (
+        _client(tmp_path, source=exploding)
+        .post("/a/doubler/compute", data={"angle": ""})
+        .get_data(as_text=True)
+    )
+
+    assert "compute() ran" not in body
+    assert "needs a value" in body
+
+
+def test_an_absent_input_is_unsupplied_rather_than_wrong(tmp_path: Path) -> None:
+    """A key that is not in the submission at all is the *open* state (§4.6).
+
+    A field left blank posts an empty string, so absence is something else: an
+    Input the form on screen did not carry, which is what changing mode produces.
+    """
     exploding = "def compute(inputs):\n    raise AssertionError('compute() ran')\n"
 
     body = (
@@ -255,7 +273,117 @@ def test_a_missing_input_is_a_refusal_not_a_none(tmp_path: Path) -> None:
     )
 
     assert "compute() ran" not in body
-    assert "needs a value" in body
+    assert "Fill in the Inputs" in body
+
+
+@pytest.mark.parametrize(
+    ("graphic", "shown"),
+    [
+        ("<svg viewBox='0 0 1 1'><path d='M 0 0' /></svg>", "<svg viewBox"),
+        # The one graphic that cannot be embedded verbatim: it is a URL (§6).
+        ("data:image/png;base64,iVBORw0KGgo=", '<img src="data:image/png'),
+    ],
+)
+def test_the_graphic_channel_takes_an_svg_or_a_png_data_uri(
+    tmp_path: Path, graphic: str, shown: str
+) -> None:
+    source = (
+        "from workshop_utils import Result\n\n\n"
+        "def compute(inputs):\n"
+        "    return Result(\n"
+        "        outputs={'answer': 1, 'note': 'n'},\n"
+        f"        graphic={graphic!r},\n"
+        "    )\n"
+    )
+
+    body = (
+        _client(tmp_path, source=source)
+        .post("/a/doubler/compute", data={"angle": "21"})
+        .get_data(as_text=True)
+    )
+
+    assert shown in body
+
+
+# --- The healthy refusal (§10.2) ---------------------------------------------
+
+REFUSING = """
+from workshop_utils import InvalidInput, Result
+
+
+def compute(inputs):
+    raise InvalidInput("Too steep for that angle.", inputs={names})
+"""
+
+
+def test_a_refusal_renders_inline_against_the_input_it_names(tmp_path: Path) -> None:
+    """Exactly where a `min`/`max` failure would: refuse, don't round."""
+    body = (
+        _client(tmp_path, source=REFUSING.format(names='["angle"]'))
+        .post("/a/doubler/compute", data={"angle": "21"})
+        .get_data(as_text=True)
+    )
+
+    assert 'id="err-angle"' in body
+    assert "Too steep for that angle." in body
+    # The Applet's own sentence, not a fragment the Host prefixes with a label.
+    assert "Bend angle Too steep" not in body
+
+
+def test_a_refusal_is_not_a_crash(tmp_path: Path) -> None:
+    """No blame line, no traceback, and the form is still there to correct."""
+    body = (
+        _client(tmp_path, source=REFUSING.format(names='["angle"]'))
+        .post("/a/doubler/compute", data={"angle": "21"})
+        .get_data(as_text=True)
+    )
+
+    assert "<details>" not in body
+    assert "Traceback" not in body
+    assert 'name="angle"' in body
+
+
+def test_a_refusal_shows_no_result(tmp_path: Path) -> None:
+    """A refused compute has no answer — a plausible wrong number is the harm."""
+    body = (
+        _client(tmp_path, source=REFUSING.format(names='["angle"]'))
+        .post("/a/doubler/compute", data={"angle": "21"})
+        .get_data(as_text=True)
+    )
+
+    assert "42" not in body
+
+
+def test_a_refusal_reaches_the_field_out_of_band_under_htmx(tmp_path: Path) -> None:
+    body = (
+        _client(tmp_path, source=REFUSING.format(names='["angle"]'))
+        .post("/a/doubler/compute", data={"angle": "21"}, headers=HTMX)
+        .get_data(as_text=True)
+    )
+
+    assert 'hx-swap-oob="true"' in body
+    assert "Too steep for that angle." in body
+
+
+@pytest.mark.parametrize(
+    ("names", "because"),
+    [
+        ('["offset"]', "an Input this Applet does not have"),
+        ("[]", "a field-targeted refusal that names no field"),
+    ],
+)
+def test_a_refusal_with_nowhere_to_land_is_a_malformed_applet(
+    tmp_path: Path, names: str, because: str
+) -> None:
+    """A message the user never sees is the silent failure §10.2 exists against."""
+    body = (
+        _client(tmp_path, source=REFUSING.format(names=names))
+        .post("/a/doubler/compute", data={"angle": "21"})
+        .get_data(as_text=True)
+    )
+
+    assert "<details>" in body
+    assert "must name a field" in body
 
 
 # --- Compute-time faults on the Applet page (§10.2) --------------------------

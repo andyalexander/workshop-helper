@@ -19,9 +19,12 @@ invites (#33).
 
 import math
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import NoReturn, TypeGuard
+
+from workshop_utils import Cell
 
 MANIFEST_FILENAME = "manifest.toml"
 DOCUMENTATION = "documentation"
@@ -38,16 +41,36 @@ INPUT_KINDS = frozenset({NUMBER, CHOICE, BOOL})
 CALIBRATION_KEY = "calibration"
 INPUTS_KEY = "inputs"
 OUTPUTS_KEY = "outputs"
+MODES_KEY = "modes"
+DEFAULT_MODE_KEY = "default_mode"
+KEYED_BY_KEY = "keyed_by"
+VALUES_KEY = "values"
 
-# An unrecognised key inside `[inputs.*]` is rejected, not ignored, because of
-# TOML's own scoping rule (§4.5): a top-level `outputs` written *after* the first
-# table header parses as a key of that table. That is valid TOML and a silently
-# wrong document, and this check is the only thing that turns it into a named
-# fault rather than a mysteriously absent Output list.
+# The name the Host owns for the derived mode selector. An Input of this name
+# would submit under the same key, so declaring one is refused (§4.5).
+MODE = "mode"
+
+# An unrecognised key inside a table is rejected, not ignored, because of TOML's
+# own scoping rule (§4.5): a top-level `outputs` written *after* a table header
+# parses as a key of that table. That is valid TOML and a silently wrong
+# document, and this check is the only thing that turns it into a named fault
+# rather than a mysteriously absent Output list.
+#
+# `[applet]` is in the list because it is the **first** table header in every
+# Manifest, which makes it the likeliest table for a stray top-level key to fall
+# into — the spec names the other three because they are where an author is
+# writing when they think of one, not because `[applet]` is safe.
+APPLET_KEYS = frozenset({"type", "name", "description", "author", "tags"})
 INPUT_KEYS = frozenset(
     {"kind", "label", "unit", "default", "min", "max", "step", "choices"}
 )
 OUTPUT_KEYS = frozenset({"name", "label", "unit", "primary"})
+MODE_KEYS = frozenset({"label", INPUTS_KEY, OUTPUTS_KEY})
+CALIBRATION_KEYS = frozenset({KEYED_BY_KEY, VALUES_KEY})
+
+# The same defence where the keys are the author's own: a calibration field may
+# be called anything, so the swallowed top-level scalars are named instead.
+TOP_LEVEL_SCALARS = frozenset({DEFAULT_MODE_KEY, OUTPUTS_KEY})
 
 # Grid arithmetic is float arithmetic: 0.1 + 0.2 must land on a 0.1 grid.
 GRID_TOLERANCE = 1e-9
@@ -91,11 +114,60 @@ class Output:
 
 
 @dataclass(frozen=True)
+class Mode:
+    """One named shape of a calculator: its own Inputs and its own Outputs (§4.5).
+
+    A mode changes **what exists**; an Input changes what a thing *is* (§1.4). So
+    ``inputs`` is a subset of the pool, referenced by name — a shared Input is
+    genuinely one Input, with one kind, one unit and one set of rules, in every
+    mode that uses it — and ``outputs`` is declared here, in display order, with
+    the primary this mode names.
+
+    A single-mode calculator has one of these too, anonymous and never rendered:
+    the degenerate case is the *absence of a section*, not a second code path.
+    """
+
+    name: str
+    label: str
+    inputs: tuple[Input, ...] = ()
+    outputs: tuple[Output, ...] = ()
+
+
+@dataclass(frozen=True)
+class Calibration:
+    """Measurements of the user's own kit, and which Input selects between them.
+
+    ``values`` is a table per key when ``keyed_by`` names a `choice` Input, and a
+    single unnamed row when it does not — so :meth:`resolve` has one shape to
+    walk and ``compute()`` receives a flat dict either way (§5.4).
+    """
+
+    values: Mapping[str, Mapping[str, Cell]]
+    keyed_by: str | None = None
+
+    def resolve(self, inputs: Mapping[str, Cell]) -> dict[str, Cell]:
+        """The slice for the selected key, flattened for ``compute()`` (§5.4).
+
+        This cannot raise: §5.3's rule 3 matched the key set to the choice set at
+        discovery, in both directions, so the selected value is a key here.
+        Making the Applet index it instead would hand back the ``KeyError`` path
+        that validation had just eliminated.
+        """
+        if self.keyed_by is None:
+            return dict(self.values[""])
+        return dict(self.values[str(inputs[self.keyed_by])])
+
+
+@dataclass(frozen=True)
 class Manifest:
     """An Applet's declaration about itself.
 
     ``author`` is optional free text for the error blame line (§10.3); it is not
     an identity and means nothing to the Host beyond display.
+
+    ``inputs`` is the whole pool; ``outputs`` is the single-mode calculator's
+    top-level list and is empty whenever ``modes`` is not, because the two are
+    mutually exclusive ways of saying the same thing (§4.5, §4.6).
     """
 
     type: str
@@ -105,12 +177,16 @@ class Manifest:
     tags: tuple[str, ...] = ()
     inputs: tuple[Input, ...] = ()
     outputs: tuple[Output, ...] = ()
+    modes: tuple[Mode, ...] = ()
+    default_mode: str = ""
+    calibration: Calibration | None = None
 
 
 def read_manifest(path: Path) -> Manifest:
     """Read and validate the Manifest at ``path``."""
     document = _load(path)
     applet = _applet_section(document)
+    _reject_unknown_keys(applet, APPLET_KEYS, "[applet]")
 
     type_ = _required_string(applet, "type")
     if type_ not in APPLET_TYPES:
@@ -121,20 +197,25 @@ def read_manifest(path: Path) -> Manifest:
         # Output, and interpolating calibration into content.md would be a
         # template language (§1.1). Each of these declares something that cannot
         # happen, so each is a mistake worth naming.
-        for key in (CALIBRATION_KEY, INPUTS_KEY, OUTPUTS_KEY):
+        for key in (CALIBRATION_KEY, INPUTS_KEY, OUTPUTS_KEY, MODES_KEY):
             if key in document:
                 raise ManifestError(
                     f"{key!r} is not allowed on a {DOCUMENTATION} Applet"
                 )
 
+    inputs = _inputs(document)
+    modes = _modes(document, inputs) if type_ == CALCULATOR else ()
     return Manifest(
         type=type_,
         name=_required_string(applet, "name"),
         description=_optional_string(applet, "description"),
         author=_optional_string(applet, "author"),
         tags=_tags(applet),
-        inputs=_inputs(document),
-        outputs=_outputs(document) if type_ == CALCULATOR else (),
+        inputs=inputs,
+        outputs=_outputs(document) if type_ == CALCULATOR and not modes else (),
+        modes=modes,
+        default_mode=_default_mode(document, modes),
+        calibration=_calibration(document, inputs, modes),
     )
 
 
@@ -183,11 +264,13 @@ def _applet_section(document: dict[str, object]) -> dict[str, object]:
     return applet
 
 
-def _required_string(applet: dict[str, object], key: str) -> str:
+def _required_string(
+    applet: dict[str, object], key: str, where: str = "[applet]"
+) -> str:
     """Read a key the Host cannot render the Applet without."""
     value = applet.get(key)
     if not isinstance(value, str) or not value:
-        raise ManifestError(f"[applet] needs a non-empty string {key!r}")
+        raise ManifestError(f"{where} needs a non-empty string {key!r}")
     return value
 
 
@@ -220,7 +303,7 @@ def _inputs(document: dict[str, object]) -> tuple[Input, ...]:
     """Read the `[inputs.*]` pool in authored order (§4.3).
 
     Every Input the Applet can use is declared exactly once here, whatever modes
-    reference it; wiring modes to this pool is #36.
+    reference it.
     """
     pool = document.get(INPUTS_KEY, {})
     if not isinstance(pool, dict):
@@ -228,52 +311,234 @@ def _inputs(document: dict[str, object]) -> tuple[Input, ...]:
     return tuple(_input(name, declaration) for name, declaration in pool.items())
 
 
-def _outputs(document: dict[str, object]) -> tuple[Output, ...]:
-    """Read the top-level `outputs` list of a single-mode calculator (§4.6).
+def _modes(document: dict[str, object], inputs: tuple[Input, ...]) -> tuple[Mode, ...]:
+    """Read the `[modes.*]` sections, wiring each to the Input pool (§4.5).
 
-    A calculator that declares no Outputs can render a form and never a Result,
-    so an empty list is incomplete rather than minimal. Per-mode Outputs are #36;
-    when they arrive, this becomes the no-`[modes]` branch of the same rule.
+    Absent is the ordinary case and not a fault: **simplicity is the absence of
+    the section**, and the caller reads a top-level `outputs` list instead.
     """
-    declared = document.get(OUTPUTS_KEY)
-    if not isinstance(declared, list) or not declared:
+    declared = document.get(MODES_KEY)
+    if declared is None:
+        return ()
+    if not isinstance(declared, dict) or not declared:
+        raise ManifestError(f"[{MODES_KEY}.*] must be a table per mode")
+    if OUTPUTS_KEY in document:
         raise ManifestError(
-            f"a {CALCULATOR} needs a non-empty top-level {OUTPUTS_KEY!r} list"
+            f"a calculator with [{MODES_KEY}] declares {OUTPUTS_KEY} per mode, "
+            "not at the top level"
         )
-    outputs = tuple(_output(entry) for entry in declared)
+
+    pool = {declaration.name: declaration for declaration in inputs}
+    if MODE in pool:
+        # The selector is derived from the modes themselves, so a second source
+        # of truth is refused rather than allowed to drift out of sync (§4.5).
+        raise ManifestError(
+            f"the {MODE} selector is derived; there is no {MODE!r} Input to declare"
+        )
+    return tuple(_mode(name, body, pool) for name, body in declared.items())
+
+
+def _mode(name: str, body: object, pool: dict[str, Input]) -> Mode:
+    """Read and self-check one `[modes.<name>]` section."""
+    where = f"[{MODES_KEY}.{name}]"
+    if not isinstance(body, dict):
+        raise ManifestError(f"{where} must be a table")
+    _reject_unknown_keys(body, MODE_KEYS, where)
+    return Mode(
+        name=name,
+        label=_required_string(body, "label", where),
+        inputs=_mode_inputs(body, pool, where),
+        outputs=_output_list(body.get(OUTPUTS_KEY), where),
+    )
+
+
+def _mode_inputs(
+    body: dict[str, object], pool: dict[str, Input], where: str
+) -> tuple[Input, ...]:
+    """Resolve a mode's Input names against the pool, in the order it lists them.
+
+    A name with nothing behind it is a fault and not an empty field: the mode is
+    asking for a value the form has no way to collect. Zero Inputs is fine — that
+    is the static calculator (§4.6).
+    """
+    named = body.get(INPUTS_KEY, [])
+    if not isinstance(named, list) or not all(isinstance(n, str) for n in named):
+        raise ManifestError(f"{where} {INPUTS_KEY!r} must be a list of Input names")
+    unknown = [name for name in named if name not in pool]
+    if unknown:
+        raise ManifestError(f"{where} names {unknown[0]!r}, which is not an Input")
+    if len(set(named)) != len(named):
+        raise ManifestError(f"{where} names the same Input twice")
+    return tuple(pool[name] for name in named)
+
+
+def _outputs(document: dict[str, object]) -> tuple[Output, ...]:
+    """Read the top-level `outputs` list of a single-mode calculator (§4.6)."""
+    return _output_list(document.get(OUTPUTS_KEY), where="a calculator")
+
+
+def _output_list(declared: object, where: str) -> tuple[Output, ...]:
+    """Read one Output list — a mode's, or a single-mode calculator's (§4.5).
+
+    Both are the same declaration in two places, so they are one rule: a
+    non-empty list, no name twice, and exactly one primary. Declaring no Outputs
+    would render a form that can never show a Result, which is incomplete rather
+    than minimal.
+    """
+    if not isinstance(declared, list) or not declared:
+        raise ManifestError(f"{where} needs a non-empty {OUTPUTS_KEY!r} list")
+    outputs = tuple(_output(entry, where) for entry in declared)
 
     names = [output.name for output in outputs]
     duplicated = {name for name in names if names.count(name) > 1}
     if duplicated:
-        raise ManifestError(f"{OUTPUTS_KEY} declares {duplicated.pop()!r} twice")
-    return _with_primary(outputs)
+        raise ManifestError(f"{where} declares {duplicated.pop()!r} twice")
+    return _with_primary(outputs, where)
 
 
-def _with_primary(outputs: tuple[Output, ...]) -> tuple[Output, ...]:
+def _with_primary(outputs: tuple[Output, ...], where: str) -> tuple[Output, ...]:
     """Settle which Output the Host renders large (§4.5).
 
     Exactly one is primary. A lone Output is it without saying so: there is
     nothing for the flag to choose between, and requiring it would be ceremony
     (§1.7). Two primaries, or none among several, is a headline the author has
-    not chosen — the Host will not choose it for them.
+    not chosen — the Host will not choose it for them. Each mode names its own,
+    which is why the headline changes between modes.
     """
     primary = [output for output in outputs if output.primary]
     if len(primary) > 1:
-        raise ManifestError(f"{OUTPUTS_KEY} declares more than one primary Output")
+        raise ManifestError(f"{where} declares more than one primary Output")
     if not primary:
         lone, *rest = outputs
         if rest:
-            raise ManifestError(f"{OUTPUTS_KEY} declares no primary Output")
+            raise ManifestError(f"{where} declares no primary Output")
         return (replace(lone, primary=True),)
     return outputs
 
 
-def _output(entry: object) -> Output:
-    """Read and self-check one entry of the `outputs` list."""
+def _default_mode(document: dict[str, object], modes: tuple[Mode, ...]) -> str:
+    """Which mode is active when the Applet opens (§4.5).
+
+    A top-level scalar, and therefore one of the two keys the ordering rule can
+    swallow — which is why an unrecognised key inside `[inputs.*]`, `[modes.*]`
+    and `[calibration.values.*]` is refused rather than ignored. Absent, it is
+    the first mode declared; present, it must name one.
+    """
+    declared = document.get(DEFAULT_MODE_KEY)
+    if not modes:
+        return ""
+    if declared is None:
+        return modes[0].name
+    if declared not in {mode.name for mode in modes}:
+        raise ManifestError(f"{DEFAULT_MODE_KEY} {declared!r} is not a declared mode")
+    return str(declared)
+
+
+def _calibration(
+    document: dict[str, object], inputs: tuple[Input, ...], modes: tuple[Mode, ...]
+) -> Calibration | None:
+    """Read `[calibration]` and enforce §5.3's four discovery rules.
+
+    **The Host branches on `keyed_by`'s presence, never on the shape of what
+    follows** — so `[calibration]` admits two keys and nothing else, and a
+    typo'd `keyd_by` is a named fault rather than a table silently read as flat.
+    """
+    section = document.get(CALIBRATION_KEY)
+    if section is None:
+        return None
+    if not isinstance(section, dict):
+        raise ManifestError(f"[{CALIBRATION_KEY}] must be a table")
+    _reject_unknown_keys(section, CALIBRATION_KEYS, f"[{CALIBRATION_KEY}]")
+
+    values = section.get(VALUES_KEY)
+    if not isinstance(values, dict) or not values:
+        raise ManifestError(
+            f"[{CALIBRATION_KEY}.{VALUES_KEY}] must be a non-empty table"
+        )
+    if KEYED_BY_KEY not in section:
+        where = f"[{CALIBRATION_KEY}.{VALUES_KEY}]"
+        return Calibration(values={"": _fields(values, where)})
+
+    keyed_by = _required_string(section, KEYED_BY_KEY, f"[{CALIBRATION_KEY}]")
+    _keyed_by_selects(keyed_by, inputs, modes, set(values))
+    table = {
+        key: _fields(row, f"[{CALIBRATION_KEY}.{VALUES_KEY}.{key}]")
+        for key, row in values.items()
+    }
+    # Rule 4: rectangular. A ragged table makes the *shape* of the resolved dict
+    # depend on which key the user selected — a KeyError that fires only for the
+    # person who owns the other bender, and never once in the author's testing.
+    if len({frozenset(row) for row in table.values()}) > 1:
+        raise ManifestError(
+            f"[{CALIBRATION_KEY}.{VALUES_KEY}.*] must carry the same fields "
+            "under every key"
+        )
+    return Calibration(values=table, keyed_by=keyed_by)
+
+
+def _keyed_by_selects(
+    keyed_by: str, inputs: tuple[Input, ...], modes: tuple[Mode, ...], keys: set[str]
+) -> None:
+    """Check that `keyed_by` really does select a slice (§5.3 rules 1–3).
+
+    Rule 3 — the key set equals the choice set **in both directions** — is where
+    §1.2 lands in the schema: you cannot offer `28mm` in the choices and leave its
+    calibration blank. Either you have measured it or it is not a choice.
+
+    A mode that omits the keying Input is refused for the same reason the Host
+    resolves the slice at all (§5.4): with nothing selecting a row there is no
+    slice to hand ``compute()``, and the Applet would fail in that mode alone.
+    """
+    declared = next((i for i in inputs if i.name == keyed_by), None)
+    if declared is None:
+        raise ManifestError(f"{KEYED_BY_KEY} {keyed_by!r} is not an Input")
+    if declared.kind != CHOICE:
+        raise ManifestError(f"{KEYED_BY_KEY} {keyed_by!r} is not a {CHOICE} Input")
+
+    choices = set(declared.choices)
+    missing = sorted(choices - keys) + sorted(keys - choices)
+    if missing:
+        raise ManifestError(
+            f"[{CALIBRATION_KEY}.{VALUES_KEY}.*] and the {keyed_by!r} choices "
+            f"disagree about {missing[0]!r}"
+        )
+    for mode in modes:
+        if declared not in mode.inputs:
+            raise ManifestError(
+                f"[{MODES_KEY}.{mode.name}] must use {keyed_by!r}, which selects "
+                "the calibration"
+            )
+
+
+def _fields(row: object, where: str) -> dict[str, Cell]:
+    """Read one calibration row: field names the author chose, scalar values.
+
+    The names are the author's, so the ordering rule cannot be defended by an
+    allow-list here (§4.5). The two top-level scalars that a stray key would have
+    been are named instead — a `default_mode` that landed in this table is
+    exactly the silent misparse the rule exists to catch.
+    """
+    if not isinstance(row, dict) or not row:
+        raise ManifestError(f"{where} must be a non-empty table")
+    fields: dict[str, Cell] = {}
+    for name, value in row.items():
+        if name in TOP_LEVEL_SCALARS:
+            raise ManifestError(
+                f"{where} has a {name!r} key — a top-level key written below a "
+                "table header parses into that table (spec §4.5)"
+            )
+        if not isinstance(value, str | bool) and not _is_number(value):
+            raise ManifestError(f"{where} {name!r} must be a number, string or bool")
+        fields[name] = value
+    return fields
+
+
+def _output(entry: object, owner: str) -> Output:
+    """Read and self-check one entry of an `outputs` list."""
     if not isinstance(entry, dict):
-        raise ManifestError(f"each {OUTPUTS_KEY} entry must be a table")
-    name = _required_string(entry, "name")
-    where = f"{OUTPUTS_KEY} {name!r}"
+        raise ManifestError(f"each {owner} {OUTPUTS_KEY} entry must be a table")
+    name = _required_string(entry, "name", owner)
+    where = f"{owner} {OUTPUTS_KEY} {name!r}"
     _reject_unknown_keys(entry, OUTPUT_KEYS, where)
 
     primary = entry.get("primary", False)

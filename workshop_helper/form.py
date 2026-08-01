@@ -17,10 +17,10 @@ what the user typed so an invalid value is shown back rather than swallowed.
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from workshop_helper.manifest import BOOL, CHOICE, Input, constraint_violation
-from workshop_utils import Cell
+from workshop_utils import Cell, InvalidInput
 
 REQUIRED = "needs a value"
 NOT_A_NUMBER = "must be a number"
@@ -39,6 +39,11 @@ class Field:
     user got wrong, or one nobody has supplied yet. ``Cell`` admits ``None``, but
     no validated Input ever produces it: a number is a float, a choice is one of
     its own strings, and a checkbox is a bool.
+
+    ``error`` is a fragment the Host completes with the Input's own label —
+    *"Bend angle must be 180 or less"*. ``refusal`` is the Applet's own sentence,
+    shown as written (§10.2), which is why it is a second field and not the same
+    one: the Host has no business prefixing a message it did not compose.
     """
 
     declared: Input
@@ -46,6 +51,7 @@ class Field:
     checked: bool = False
     value: Cell | None = None
     error: str | None = None
+    refusal: str | None = None
 
 
 @dataclass(frozen=True)
@@ -86,20 +92,43 @@ def build_form(inputs: tuple[Input, ...], submitted: Mapping[str, str] | None) -
     """Build the form, from the declared defaults or from what was submitted.
 
     ``submitted is None`` is the Applet being opened; a mapping is a compute
-    round-trip, where a missing key is a real absence — an unticked checkbox, or
-    a field left blank.
+    round-trip, where a field left blank submits an empty string and is refused.
+
+    **A key missing from the submission falls back to the declared default**, and
+    that is what makes changing mode work: the form that was on screen carries
+    the *old* mode's Inputs, so an Input only the new mode has arrives absent
+    rather than blank. A shared Input keeps whatever the user had typed, because
+    it is genuinely the same Input in both modes (§4.5).
     """
     return Form(tuple(_field(declared, submitted) for declared in inputs))
+
+
+def refuse(form: Form, refusal: InvalidInput) -> Form:
+    """Put an Applet's ``InvalidInput`` back against the fields it names (§10.2).
+
+    The refusal renders exactly where a `min`/`max` failure would, because that
+    is the whole point of it being field-targeted: the user is told which box to
+    change, not handed a plausible wrong number.
+    """
+    named = set(refusal.inputs)
+    return Form(
+        tuple(
+            replace(field, refusal=refusal.message)
+            if field.declared.name in named
+            else field
+            for field in form.fields
+        )
+    )
 
 
 def _field(declared: Input, submitted: Mapping[str, str] | None) -> Field:
     """Build one field, validating it if there is anything to validate."""
     if declared.kind == BOOL:
         return _bool_field(declared, submitted)
-    if submitted is None:
+    if submitted is None or declared.name not in submitted:
         raw = "" if declared.default is None else str(declared.default)
         return _validated(declared, raw) if raw else Field(declared)
-    return _validated(declared, submitted.get(declared.name, ""))
+    return _validated(declared, submitted[declared.name])
 
 
 def _bool_field(declared: Input, submitted: Mapping[str, str] | None) -> Field:
