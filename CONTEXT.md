@@ -25,6 +25,10 @@ _Avoid_: Settings, preferences, config — the Overlay is machine-written user s
 **Root**:
 A directory the Host scans for Applets. An Applet belongs to exactly one Root, which is its provenance — the built-in set, the user's own, or a collection obtained from someone else.
 
+**Facet**:
+One value you can filter the library by — a tag, or the Root. Facets **AND**: each one placed narrows what is left, and a placed tag facet is a **chip** in the sidebar. Because ADR-0003 leaves no hierarchy to climb back up, every candidate must show what it would *leave* before it is picked, and an empty result must recover in one click ([spec §9](docs/spec/host-framework.md)). Root is single-valued, so choosing a second replaces the first; tags are not.
+_Avoid_: Category, folder (there is no hierarchy), filter (the whole sidebar is the filter — a facet is one value within it).
+
 **Fault**:
 An Applet folder the Host refused, rendered as a **greyed, un-openable card** rather than hidden. A Fault is *not* a broken Applet the Host tolerates: the index holds it apart from its Applets, so no lookup can resolve one into something to open. Faults the Host can see at scan without importing anything are **discovery-time** ([spec §10.1](docs/spec/host-framework.md)); those needing the Applet to run are **compute-time** and render on the Applet page instead (§10.2). Every Fault renders through one **error surface** — a blame line over a collapsed Details disclosure (§10.3).
 _Avoid_: Error (too broad — a healthy `InvalidInput` refusal is an error and is not a Fault), invalid Applet (it may be a perfectly good Applet that lost a name collision).

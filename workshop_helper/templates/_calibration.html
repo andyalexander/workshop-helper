@@ -13,7 +13,7 @@
    are prefixed away from the Inputs, because an Applet may have both an Input
    and a calibration field called `r_centreline` (§8). #}
 {% macro calibration(applet, view) %}
-  {% set action = url_for('save_calibration', applet_id=applet.id) %}
+  {% set action = keep(url_for('save_calibration', applet_id=applet.id)) %}
   <details class="calibration">
     <summary>Calibration{% if view.key %} — {{ view.key }}{% endif %}</summary>
     {% for field in view.fields %}

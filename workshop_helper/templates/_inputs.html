@@ -10,8 +10,8 @@
     class="inputs"
     id="inputs"
     method="post"
-    action="{{ url_for('compute', applet_id=applet.id) }}"
-    hx-post="{{ url_for('compute', applet_id=applet.id) }}"
+    action="{{ keep(url_for('compute', applet_id=applet.id)) }}"
+    hx-post="{{ keep(url_for('compute', applet_id=applet.id)) }}"
     hx-target="#result"
     {% if oob %}hx-swap-oob="true"{% endif %}
   >
@@ -25,7 +25,7 @@
         <select
           id="in-{{ mode_field }}"
           name="{{ mode_field }}"
-          hx-post="{{ url_for('compute', applet_id=applet.id) }}"
+          hx-post="{{ keep(url_for('compute', applet_id=applet.id)) }}"
           hx-target="#result"
           hx-include="#inputs"
         >
@@ -90,7 +90,7 @@
        JavaScript and no illegal nesting. A saved default is a default, so an
        Applet you have half-filled and saved computes on open for you and not for
        anyone else (§4.6). #}
-    {% set defaults_action = url_for('save_defaults', applet_id=applet.id) %}
+    {% set defaults_action = keep(url_for('save_defaults', applet_id=applet.id)) %}
     <div class="strip">
       <button
         type="submit"

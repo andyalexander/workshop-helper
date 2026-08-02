@@ -507,7 +507,9 @@ def test_the_save_as_defaults_strip_sits_under_the_inputs(
 
         body = client.get("/a/bender").get_data(as_text=True)
 
-        form = body.split("<form")[1].split("</form>")[0]
+        # The Inputs form specifically: the sidebar's filter form (#34) is the
+        # first form on the page, and the strip belongs to neither of the others.
+        form = body.split('id="inputs"')[1].split("</form>")[0]
         assert "Save as defaults" in form
         assert form.index("Compute") < form.index("Save as defaults")
 

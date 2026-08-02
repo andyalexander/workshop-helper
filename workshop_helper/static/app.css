@@ -1,6 +1,5 @@
-/* Minimal shell styling. The facet sidebar and its chips are #34 (spec §9);
-   this is only enough for the card grid, the greyed card, and a readable
-   documentation page. */
+/* Minimal shell styling: the facet sidebar, the card grid, the greyed card, a
+   readable documentation page, and the calculator's form (spec §9). */
 
 :root {
   --ink: #1c1c1c;
@@ -9,6 +8,8 @@
   --paper: #fbfaf8;
   --grey: #6b6b6b;
   --grey-paper: #f2f1ee;
+  --accent: #1f5c8b;
+  --own: #6b3fa0;
 }
 
 body {
@@ -34,9 +35,188 @@ header a {
 }
 
 main {
-  margin: 0 auto;
+  flex: 1;
   max-width: 60rem;
+  min-width: 0;
   padding: 1.5rem;
+}
+
+/* The facet sidebar is chrome: it sits beside the content on Browse and on the
+   Applet page alike, so a facet is one click away wherever you are (spec §9).
+   It stacks above the content on a narrow screen rather than collapsing behind
+   a control — there is no hierarchy to fall back on if it goes missing
+   (ADR-0003). */
+
+.shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.sidebar {
+  border-right: 1px solid var(--rule);
+  flex: 0 0 15rem;
+  padding: 1.5rem 0 1.5rem 1.5rem;
+  position: sticky;
+  top: 0;
+}
+
+@media (max-width: 48rem) {
+  .shell {
+    display: block;
+  }
+
+  .sidebar {
+    border-bottom: 1px solid var(--rule);
+    border-right: 0;
+    padding: 1rem 1.5rem;
+    position: static;
+  }
+}
+
+.filter {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.filter input[type="search"] {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font: inherit;
+  min-width: 0;
+  padding: 0.25rem 0.5rem;
+  width: 100%;
+}
+
+.filter button {
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.offscreen {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+}
+
+.chip {
+  background: var(--accent);
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.75rem;
+  gap: 0.35rem;
+  padding: 0.1rem 0.55rem;
+  text-decoration: none;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 0.6rem 0 0;
+}
+
+kbd {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-size: 0.9em;
+  padding: 0 0.2rem;
+}
+
+.facet-head {
+  border-bottom: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  margin: 1.1rem 0 0.3rem;
+  padding-bottom: 0.2rem;
+  text-transform: uppercase;
+}
+
+.facets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.facet {
+  border-radius: 4px;
+  color: inherit;
+  display: flex;
+  font-size: 0.85rem;
+  gap: 0.5rem;
+  justify-content: space-between;
+  padding: 0.15rem 0.35rem;
+  text-decoration: none;
+}
+
+.facet:hover {
+  background: var(--grey-paper);
+}
+
+.facet.on {
+  background: var(--grey-paper);
+  box-shadow: inset 2px 0 0 var(--accent);
+  font-weight: 600;
+}
+
+/* Said in words, not in a "0": what a candidate would leave, before it is
+   picked. The dimming only reinforces the sentence. */
+.facet.dead {
+  opacity: 0.55;
+}
+
+.facet .leaves {
+  color: var(--muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* Own-Root marker: the badge carries it, the colour only reinforces — never
+   colour alone (#11). Display-only; the tag still filters globally. */
+.own {
+  border: 1px solid var(--own);
+  border-radius: 3px;
+  color: var(--own);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  padding: 0 0.2rem;
+  text-transform: uppercase;
+  vertical-align: 0.1em;
+}
+
+.count {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0 0 0.8rem;
+}
+
+.crumb {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0 0 0.6rem;
+}
+
+.recover {
+  white-space: nowrap;
 }
 
 .card-grid {
@@ -84,6 +264,12 @@ main {
   border-radius: 999px;
   font-size: 0.75rem;
   padding: 0.1rem 0.55rem;
+}
+
+/* A tag the filter is on: the card shows *why* it is here. */
+.tag.on {
+  box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--accent);
 }
 
 /* A faulty Applet is greyed and un-openable (spec §10.1). Greyed is carried by

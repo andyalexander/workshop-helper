@@ -1,0 +1,3 @@
+{# The htmx response for the live ↵ preview: the facet lists on their own, so
+   the swap replaces exactly the block the page already rendered (spec §9). #}
+{% import "_facets.html" as lists %}{{ lists.facets(view) }}

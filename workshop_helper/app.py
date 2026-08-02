@@ -35,9 +35,28 @@ JavaScript to work.
 
 from collections.abc import Mapping
 
-from flask import Flask, abort, render_template, request, send_from_directory
+from flask import (
+    Flask,
+    abort,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 from werkzeug.wrappers import Response
 
+from workshop_helper.browse import (
+    ROOT_PARAM,
+    TAG_PARAM,
+    TEXT_PARAM,
+    Query,
+    promote,
+    read_query,
+    results,
+    sidebar,
+    vocabulary,
+)
 from workshop_helper.discovery import Applet, Index
 from workshop_helper.errors import error_surface
 from workshop_helper.form import Form, build_form, computes_on_open, refuse
@@ -53,6 +72,7 @@ from workshop_helper.render import Computation, figure
 from workshop_utils import InvalidInput, render_markdown
 
 ASSETS_PREFIX = "assets"
+FACETS_PREFIX = "facets"
 COMPUTE_PREFIX = "compute"
 DEFAULTS_PREFIX = "defaults"
 CALIBRATION_PREFIX = "calibration"
@@ -92,21 +112,58 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
             abort(404)
         return applet
 
+    def _page(template: str, **context: object) -> str:
+        """Render a full page — every one of them carries the sidebar (§9).
+
+        The filter is read back off the URL rather than threaded through, which
+        is what makes "the sidebar persists on the Applet page" a property of the
+        link that got you there rather than of any state the Host keeps.
+        """
+        query = read_query(request.args)
+        # Text that reaches here matched no tag, so it is both the filter and
+        # what is still in the box — the hint says which of the two it is.
+        view = sidebar(index, query, typed=query.text)
+        return render_template(template, sidebar=view, **context)
+
     @app.route("/")
-    def browse() -> str:
+    def browse() -> str | Response:
+        query = read_query(request.args)
+        promoted = promote(query.text, vocabulary(index.applets))
+        if promoted is not None:
+            # ↵ over a matching prefix places a chip; it does not search. The
+            # redirect is what clears the box and settles the filter into the
+            # URL, so `imp↵cop↵` lands two chips with no JavaScript at all.
+            return _redirect(query.with_tag(promoted).without_text())
         # Faults render alongside the cards, never instead of them: a greyed card
         # is a card (§10.1). `require_applet` cannot reach one, so every route
         # below is un-openable for a faulty id by construction.
+        left = results(index, query)
+        return _page("browse.html", applets=left.applets, faults=left.faults)
+
+    def _redirect(query: Query) -> Response:
+        return redirect(query.href(url_for("browse")))
+
+    @app.route(f"/{FACETS_PREFIX}")
+    def facets() -> str:
+        """The ↵ preview, live (§9).
+
+        The box holds a half-written token, so it narrows the **candidates** and
+        never the results: the counts have to say what the chip would leave, not
+        what the half-word matches as text. Without htmx this route is simply
+        never called and the same lists render with the page.
+        """
+        asked = read_query(request.args)
         return render_template(
-            "browse.html", applets=index.applets, faults=index.faults
+            "facets.html",
+            view=sidebar(index, asked.without_text(), typed=asked.text),
         )
 
     @app.route("/a/<applet_id>")
     def applet_page(applet_id: str) -> str:
         applet = require_applet(applet_id)
         if applet.type != DOCUMENTATION:
-            return render_template("calculator.html", **_calculator(applet, None))
-        return render_template(
+            return _page("calculator.html", **_calculator(applet, None))
+        return _page(
             "documentation.html",
             applet=applet,
             content=render_markdown(applet.body or "", asset_base=asset_base(applet)),
@@ -176,7 +233,7 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
         """
         context = _calculator(authored, submitted)
         if request.headers.get(HTMX_HEADER) is None:
-            return render_template("calculator.html", **context)
+            return _page("calculator.html", **context)
         return render_template("_compute.html", **context)
 
     def _calculator(
@@ -215,12 +272,33 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
         return send_from_directory(applet.path, filename)
 
     app.add_template_filter(figure)
+    # `keep` hangs the current filter off a URL. It is a global rather than a
+    # passed variable because the form lives in an imported macro, and a POST
+    # that loses the query string is a POST that loses the sidebar (§9).
+    app.jinja_env.globals["keep"] = _keep
+    # The filter's field names are the Host's, and each is one name: the sidebar
+    # posts under it and `read_query` reads it back (the same rule the mode
+    # selector follows above).
+    app.jinja_env.globals["tag_param"] = TAG_PARAM
+    app.jinja_env.globals["root_param"] = ROOT_PARAM
+    app.jinja_env.globals["text_param"] = TEXT_PARAM
     # The selector's field name is the Host's, and it is one name: the template
     # posts under it and the route above reads it back. (`mode` itself is the
     # active Mode in every template, so the field name gets its own.)
     app.jinja_env.globals[MODE_FIELD] = MODE
     app.jinja_env.globals[RESET_FIELD] = RESET
     return app
+
+
+def _keep(url: str) -> str:
+    """``url`` with the current filter kept on it (§9).
+
+    Self-perpetuating: the action was rendered through here, so the POST arrives
+    carrying the query string, and the page it answers with renders through here
+    again. That is the whole mechanism by which a no-JavaScript Compute comes
+    back with the same chips still in the sidebar.
+    """
+    return read_query(request.args).href(url)
 
 
 def _run_applet(applet: Applet, mode: Mode, form: Form) -> tuple[Form, Computation]:

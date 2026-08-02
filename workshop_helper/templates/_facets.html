@@ -1,0 +1,65 @@
+{# The part of the sidebar that answers to the box: the ↵ preview and the facet
+   lists (spec §9). Its own file because htmx swaps exactly this while you type —
+   which is the only way the ranking behind ↵ can be *seen* over a server
+   round-trip. Without JavaScript it renders in place with the page and every
+   count is still there to read before you click. #}
+{% macro facet_row(facet, browse_url) %}
+  <li>
+    <a
+      class="facet {{ 'on' if facet.selected }} {{ 'dead' if facet.dead }}"
+      href="{{ facet.query.href(browse_url) }}"
+    >
+      <span class="facet-name">
+        {{ facet.label }}
+        {# Own-Root marker: the badge is the signal and the colour only
+           reinforces it (#11). Display-only — this tag still filters foreign
+           Applets, because the pool is global (§4.2). #}
+        {% if facet.own %}<span class="own" title="Used by your own Applets">own</span>{% endif %}
+      </span>
+      <span class="leaves">
+        {%- if facet.dead %}leaves nothing{% else %}{{ facet.leaves }}{% endif -%}
+      </span>
+    </a>
+  </li>
+{% endmacro %}
+{% macro facets(view) %}
+  {% set browse_url = url_for('browse') %}
+  <div id="facets">
+    {# Facets AND, so a fast typist can pick a combination nothing has. Say what
+       ↵ would leave *before* it is pressed, and say it in words — a "0" is a
+       number you have to interpret (§9). #}
+    <p class="hint">
+      {% if view.top %}
+        <kbd>&#8629;</kbd> <b>{{ view.top.label }}</b>
+        {%- if view.top.selected %} — already on
+        {%- elif view.top.dead %} — leaves nothing
+        {%- else %} — {{ view.top.leaves }} left{% endif %}
+      {% elif view.typed %}
+        No tag matches &ldquo;{{ view.typed }}&rdquo; — searching text instead.
+      {% elif view.chips %}
+        <kbd>&#9003;</kbd> removes the last chip.
+      {% else %}
+        Type a tag prefix and press <kbd>&#8629;</kbd>.
+      {% endif %}
+    </p>
+
+    <h2 class="facet-head">Tags</h2>
+    {% if view.tags %}
+      <ul class="facets">
+        {% for candidate in view.tags %}{{ facet_row(candidate, browse_url) }}{% endfor %}
+      </ul>
+    {% else %}
+      <p class="hint">No tags yet.</p>
+    {% endif %}
+
+    {# Root is single-valued (#11), so picking a second replaces the first —
+       AND-combined with the chips by the same machinery, no new control, and the
+       same guard rail on every row. #}
+    {% if view.roots %}
+      <h2 class="facet-head">Root</h2>
+      <ul class="facets">
+        {% for root in view.roots %}{{ facet_row(root, browse_url) }}{% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% endmacro %}
