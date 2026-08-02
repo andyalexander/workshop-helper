@@ -180,10 +180,12 @@ def compute(mode: str, inputs: dict, calibration: dict) -> Result:
 
     if mode == "single_bend":
         setback = r_centreline * tan(radians(angle) / 2)
-        return Result(outputs={
-            "setback": setback,
-            "r_centreline": r_centreline,
-        })
+        return Result(
+            outputs={
+                "setback": setback,
+                "r_centreline": r_centreline,
+            }
+        )
 
     if mode == "step":
         offset = inputs["offset"]
@@ -195,12 +197,16 @@ def compute(mode: str, inputs: dict, calibration: dict) -> Result:
                 f"smallest is {min_step:.0f}mm.",
                 inputs=["offset", "angle"],
             )
-        gain = 2 * r_centreline * tan(radians(angle) / 2) - r_centreline * radians(angle)
-        return Result(outputs={
-            "mark_distance": offset / sin(radians(angle)) - gain,
-            "gain": gain,
-            "min_step": min_step,
-        })
+        gain = 2 * r_centreline * tan(radians(angle) / 2) - r_centreline * radians(
+            angle
+        )
+        return Result(
+            outputs={
+                "mark_distance": offset / sin(radians(angle)) - gain,
+                "gain": gain,
+                "min_step": min_step,
+            }
+        )
 ```
 
 Rules the Host enforces around this:
@@ -331,8 +337,7 @@ inline below `[inputs.thread]`, the identical list would silently become
 `compute()` for a single-mode Applet omits the `mode` argument:
 
 ```python
-def compute(inputs: dict) -> Result:
-    ...
+def compute(inputs: dict) -> Result: ...
 ```
 
 ### Your signature is whatever you declared

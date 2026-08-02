@@ -114,9 +114,10 @@ while *improving* the ADR-0001 lifecycle story:
 
 ```python
 import logging, werkzeug.serving
-logging.getLogger("werkzeug").setLevel(logging.ERROR)   # no per-request access log
+
+logging.getLogger("werkzeug").setLevel(logging.ERROR)  # no per-request access log
 srv = werkzeug.serving.make_server("127.0.0.1", PORT, app, threaded=True)
-srv.serve_forever()          # Ctrl-C exits; srv.shutdown() for a clean stop
+srv.serve_forever()  # Ctrl-C exits; srv.shutdown() for a clean stop
 ```
 
 **[verified]** this yields no banner, no access-log spam, and a single Host-owned line
@@ -165,7 +166,7 @@ one, and could not tell you which mechanism was chosen. **[verified]** end-to-en
 entire surface stays:
 
 ```python
-def compute(diameter: float, pitch: float) -> dict: ...   # pure Python, sync, no JS
+def compute(diameter: float, pitch: float) -> dict: ...  # pure Python, sync, no JS
 ```
 
 while the Host emits:
@@ -270,10 +271,11 @@ mutates tokens before rendering:
 ```python
 def scope_assets(state):
     for tok in state.tokens:
-        for child in (tok.children or []):
+        for child in tok.children or []:
             attr = {"link_open": "href", "image": "src"}.get(child.type)
             if attr and (v := child.attrGet(attr)) and is_relative(v):
                 child.attrSet(attr, urljoin(BASE, v))
+
 
 md = MarkdownIt("commonmark", {"html": False}).enable("table")
 md.core.ruler.push("scope_assets", scope_assets)

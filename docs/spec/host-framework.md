@@ -720,10 +720,10 @@ re-corrected once per machine.
 
 ```python
 Result(
-    outputs={...},      # required: name -> value
-    table=None,         # optional
-    html=None,          # optional  — the pressure valve (§1.3)
-    graphic=None,       # optional
+    outputs={...},  # required: name -> value
+    table=None,  # optional
+    html=None,  # optional  — the pressure valve (§1.3)
+    graphic=None,  # optional
 )
 ```
 
@@ -1151,6 +1151,7 @@ default = 90
 
 ```python
 from workshop_utils import Result
+
 
 def compute(inputs: dict) -> Result:
     ...
