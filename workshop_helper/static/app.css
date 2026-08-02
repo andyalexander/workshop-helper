@@ -208,6 +208,50 @@ pre.details {
   padding: 0.3rem 1rem;
 }
 
+/* The save-as-defaults strip, and the Calibration disclosure below it — the same
+   place on every calculator (spec §9). Both take the full width of the form so
+   they read as a band under the Inputs rather than as another field. */
+
+.strip,
+.calibration {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.strip {
+  border-top: 1px solid var(--rule);
+  display: flex;
+  gap: 0.6rem;
+  padding-top: 0.75rem;
+}
+
+/* A reset is an undo, not an action: quieter than the button beside it, and
+   never the thing the eye lands on first. */
+.inputs button.reset {
+  background: none;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+}
+
+.calibration summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.calibration .field {
+  margin-top: 0.6rem;
+}
+
+.calibration input[type="text"],
+.calibration input[type="number"] {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font: inherit;
+  padding: 0.2rem 0.4rem;
+  width: 7rem;
+}
+
 .outputs {
   display: flex;
   flex-wrap: wrap;

@@ -14,6 +14,7 @@ from flask import Flask
 
 from workshop_helper.app import create_app
 from workshop_helper.discovery import Index
+from workshop_helper.overlay import Overlay
 
 DEFAULT_HOST = "127.0.0.1"
 # The one free choice in the spec (§2.3): a fixed default in the high private
@@ -54,7 +55,7 @@ def run_server(app: Flask, host: str, port: int) -> None:
     app.run(host=host, port=port)
 
 
-def serve(index: Index, port: int, host: str = DEFAULT_HOST) -> int:
+def serve(index: Index, overlay: Overlay, port: int, host: str = DEFAULT_HOST) -> int:
     """Launch the Host, or defer to an already-running copy on a busy port.
 
     A busy port is not a startup, so it prints exactly one line and defers; the
@@ -67,7 +68,7 @@ def serve(index: Index, port: int, host: str = DEFAULT_HOST) -> int:
         return 0
 
     print(index.summary_line())
-    app = create_app(index)
+    app = create_app(index, overlay)
     print(f"Serving Workshop Helper on http://{host}:{port}/  (Ctrl-C to stop)")
     schedule_browser(host, port)
     run_server(app, host, port)

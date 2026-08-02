@@ -4,7 +4,8 @@
 
    `oob` re-renders the form out of band on a compute round-trip, which is how a
    field's own error reaches the field while htmx swaps only the Result. #}
-{% macro inputs(applet, mode, form, oob=false) %}
+{% import "_calibration.html" as calibrations %}
+{% macro inputs(applet, mode, form, calibration=none, oob=false) %}
   <form
     class="inputs"
     id="inputs"
@@ -83,5 +84,33 @@
       </div>
     {% endfor %}
     <button type="submit">Compute</button>
+    {# Save-as-defaults is an explicit strip under the Inputs, in the same place
+       on every calculator (§9). These are buttons of *this* form rather than a
+       form of their own: `formaction` posts the very values on screen, with no
+       JavaScript and no illegal nesting. A saved default is a default, so an
+       Applet you have half-filled and saved computes on open for you and not for
+       anyone else (§4.6). #}
+    {% set defaults_action = url_for('save_defaults', applet_id=applet.id) %}
+    <div class="strip">
+      <button
+        type="submit"
+        formaction="{{ defaults_action }}"
+        hx-post="{{ defaults_action }}"
+        hx-target="#result"
+        hx-include="#inputs"
+      >Save as defaults</button>
+      <button
+        type="submit"
+        class="reset"
+        formaction="{{ defaults_action }}"
+        name="{{ reset_field }}"
+        value="all"
+        hx-post="{{ defaults_action }}"
+        hx-target="#result"
+        hx-include="#inputs"
+        hx-vals='{"{{ reset_field }}": "all"}'
+      >Reset to the author's defaults</button>
+    </div>
+    {% if calibration %}{{ calibrations.calibration(applet, calibration) }}{% endif %}
   </form>
 {% endmacro %}

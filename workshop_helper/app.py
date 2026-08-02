@@ -23,7 +23,17 @@ and the **validate step is a gate, not a stage**: without
 :attr:`~workshop_helper.form.Form.values` there is nothing to import anything
 for. The round-trip is htmx over a form that posts on its own, so the same route
 answers both — a fragment when htmx asked, the whole page when a browser did.
+
+The Overlay is merged into the indexed Applet in exactly one place,
+:func:`_calculator`. Below that line the form, the round-trip and ``compute()``
+see one Applet and never learn that part of it came from the user rather than
+the author (§8). The three write routes — Compute, save-as-defaults, the
+Calibration disclosure — are three ``formaction``s on **one form**, which is why
+the values on screen ride along with every one of them and why none of it needs
+JavaScript to work.
 """
+
+from collections.abc import Mapping
 
 from flask import Flask, abort, render_template, request, send_from_directory
 from werkzeug.wrappers import Response
@@ -33,13 +43,27 @@ from workshop_helper.errors import error_surface
 from workshop_helper.form import Form, build_form, computes_on_open, refuse
 from workshop_helper.loader import AppletFault, run_compute
 from workshop_helper.manifest import DOCUMENTATION, MODE, Mode
+from workshop_helper.overlay import (
+    Overlay,
+    calibration_view,
+    overlaid,
+    submitted_calibration,
+)
 from workshop_helper.render import Computation, figure
 from workshop_utils import InvalidInput, render_markdown
 
 ASSETS_PREFIX = "assets"
 COMPUTE_PREFIX = "compute"
+DEFAULTS_PREFIX = "defaults"
+CALIBRATION_PREFIX = "calibration"
 HTMX_HEADER = "HX-Request"
 MODE_FIELD = "mode_field"
+
+# The Host's own field for "put this back the way the author had it" — carried
+# by the button that was pressed, which is how one route serves both a save and
+# its undo without a second URL.
+RESET = "reset"
+RESET_FIELD = "reset_field"
 
 
 def asset_base(applet: Applet) -> str:
@@ -50,7 +74,7 @@ def asset_base(applet: Applet) -> str:
     return f"/a/{applet.id}/{ASSETS_PREFIX}/"
 
 
-def create_app(index: Index) -> Flask:
+def create_app(index: Index, overlay: Overlay) -> Flask:
     """Build the Host's Flask application over a resolved ``index``."""
     app = Flask(__name__)
     app.config["INDEX"] = index
@@ -58,6 +82,13 @@ def create_app(index: Index) -> Flask:
     def require_applet(applet_id: str) -> Applet:
         applet = index.applet(applet_id)
         if applet is None:
+            abort(404)
+        return applet
+
+    def require_calculator(applet_id: str) -> Applet:
+        """An Applet that has a form to post to; a documentation page has none."""
+        applet = require_applet(applet_id)
+        if applet.type == DOCUMENTATION:
             abort(404)
         return applet
 
@@ -74,7 +105,7 @@ def create_app(index: Index) -> Flask:
     def applet_page(applet_id: str) -> str:
         applet = require_applet(applet_id)
         if applet.type != DOCUMENTATION:
-            return _calculator_page(applet)
+            return render_template("calculator.html", **_calculator(applet, None))
         return render_template(
             "documentation.html",
             applet=applet,
@@ -91,44 +122,89 @@ def create_app(index: Index) -> Flask:
         is an ordinary form POST and the answer is the whole page — the form
         works with no JavaScript at all, and htmx only upgrades it.
         """
-        applet = require_applet(applet_id)
-        if applet.type == DOCUMENTATION:
-            abort(404)
-        # The selector is the Host's own field, derived from `[modes.*]`; there
-        # is no `mode` Input for it to collide with (§4.5).
+        return _answer(require_calculator(applet_id), request.form)
+
+    @app.route(f"/a/<applet_id>/{DEFAULTS_PREFIX}", methods=["POST"])
+    def save_defaults(applet_id: str) -> str:
+        """The save-as-defaults strip under the Inputs (§9), and its undo.
+
+        Saving is not computing, so an invalid field does not block it: every
+        field that *does* hold a value is kept, which is how a partially-filled
+        Applet becomes one that computes on open for this user (§4.6, §8).
+        """
+        authored = require_calculator(applet_id)
+        if RESET in request.form:
+            overlay.clear_defaults(applet_id)
+            # Answered as if freshly opened — seeing the author's figures back in
+            # the boxes is the whole point of the reset.
+            return _answer(authored, submitted=None)
+
+        applet = overlaid(authored, overlay)
+        mode = applet.mode(request.form.get(MODE))
+        overlay.save_defaults(applet_id, build_form(mode.inputs, request.form).supplied)
+        return _answer(authored, request.form)
+
+    @app.route(f"/a/<applet_id>/{CALIBRATION_PREFIX}", methods=["POST"])
+    def save_calibration(applet_id: str) -> str:
+        """The Calibration disclosure's writes: correct a field, or reset one.
+
+        Both act on the **active key only** (§5.5) — the slice the user is
+        looking at is the bender they are standing at.
+        """
+        authored = require_calculator(applet_id)
+        applet = overlaid(authored, overlay)
         mode = applet.mode(request.form.get(MODE))
         form = build_form(mode.inputs, request.form)
-        form, computation = _run_applet(applet, mode, form)
+        view = calibration_view(authored.calibration, applet.calibration, form)
+        if view is not None:
+            field = request.form.get(RESET)
+            if field is None:
+                overlay.save_calibration(
+                    applet_id, view.key, submitted_calibration(view, request.form)
+                )
+            else:
+                overlay.reset_calibration(applet_id, view.key, field)
+        return _answer(authored, request.form)
+
+    def _answer(authored: Applet, submitted: Mapping[str, str] | None) -> str:
+        """Render the calculator: a fragment when htmx asked, else the page.
+
+        Every write route ends here, so a saved default or a corrected
+        calibration lands on screen through the same swap a Compute does — and
+        the disclosure comes back with the form, out of band, because a reset
+        changes a box that is not inside the Result fragment.
+        """
+        context = _calculator(authored, submitted)
         if request.headers.get(HTMX_HEADER) is None:
-            return _render_calculator(applet, mode, form, computation)
-        return render_template(
-            "_compute.html",
-            applet=applet,
-            mode=mode,
-            form=form,
-            computation=computation,
-        )
+            return render_template("calculator.html", **context)
+        return render_template("_compute.html", **context)
 
-    def _calculator_page(applet: Applet) -> str:
-        """Open a calculator: the form, and a Result iff it can have one (§4.6)."""
-        mode = applet.mode()
-        form = build_form(mode.inputs, submitted=None)
+    def _calculator(
+        authored: Applet, submitted: Mapping[str, str] | None
+    ) -> dict[str, object]:
+        """Everything the calculator page shows, as *this user* sees it (§8).
+
+        ``submitted is None`` is the Applet being opened, where a Result appears
+        only if every Input has a default — the user's saved ones included, which
+        is what makes compute-on-open user-dependent (§4.6).
+        """
+        applet = overlaid(authored, overlay)
+        # The selector is the Host's own field, derived from `[modes.*]`; there
+        # is no `mode` Input for it to collide with (§4.5).
+        mode = applet.mode(None if submitted is None else submitted.get(MODE))
+        form = build_form(mode.inputs, submitted)
         computation = Computation()
-        if computes_on_open(mode.inputs):
+        if submitted is not None or computes_on_open(mode.inputs):
             form, computation = _run_applet(applet, mode, form)
-        return _render_calculator(applet, mode, form, computation)
-
-    def _render_calculator(
-        applet: Applet, mode: Mode, form: Form, computation: Computation
-    ) -> str:
-        """The whole page: the form, and whatever the Result region has to show."""
-        return render_template(
-            "calculator.html",
-            applet=applet,
-            mode=mode,
-            form=form,
-            computation=computation,
-        )
+        return {
+            "applet": applet,
+            "mode": mode,
+            "form": form,
+            "computation": computation,
+            "calibration": calibration_view(
+                authored.calibration, applet.calibration, form
+            ),
+        }
 
     @app.route(f"/a/<applet_id>/{ASSETS_PREFIX}/<path:filename>")
     def applet_asset(applet_id: str, filename: str) -> Response:
@@ -143,6 +219,7 @@ def create_app(index: Index) -> Flask:
     # posts under it and the route above reads it back. (`mode` itself is the
     # active Mode in every template, so the field name gets its own.)
     app.jinja_env.globals[MODE_FIELD] = MODE
+    app.jinja_env.globals[RESET_FIELD] = RESET
     return app
 
 

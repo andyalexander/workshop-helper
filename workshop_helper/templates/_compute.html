@@ -2,6 +2,9 @@
 {% import "_result.html" as results %}
 {# The htmx round-trip's answer (spec §2.8): the Result fragment, which is what
    `hx-target` swaps, followed by the form again with `hx-swap-oob` so a field's
-   own error lands on the field. Two fragments, one request, no second route. #}
+   own error lands on the field. Two fragments, one request, no second route.
+
+   The save-as-defaults strip and the Calibration disclosure are inside that
+   form, so a reset comes back with it — one swap for every write route. #}
 {{ results.result(mode, computation) }}
-{{ forms.inputs(applet, mode, form, oob=true) }}
+{{ forms.inputs(applet, mode, form, calibration, oob=true) }}

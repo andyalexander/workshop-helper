@@ -11,6 +11,7 @@ import argparse
 from workshop_helper.discovery import build_index
 from workshop_helper.home import load_config_roots, resolve_home
 from workshop_helper.lifecycle import DEFAULT_PORT, serve
+from workshop_helper.overlay import OVERLAY_FILENAME, Overlay
 from workshop_helper.roots import resolve_roots
 
 
@@ -36,8 +37,11 @@ def main(argv: list[str] | None = None) -> int:
     home = resolve_home()
     roots = resolve_roots(home, load_config_roots(home))
     index = build_index(roots)
+    # A separate file from `config.toml`, never a section within it: config is
+    # hand-edited and the Overlay is machine-written (ADR-0007).
+    overlay = Overlay(home / OVERLAY_FILENAME)
 
-    return serve(index, args.port)
+    return serve(index, overlay, args.port)
 
 
 if __name__ == "__main__":

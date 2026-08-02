@@ -73,6 +73,17 @@ class Form:
         return {field.declared.name: field.value for field in self.fields}
 
     @property
+    def supplied(self) -> dict[str, Cell]:
+        """Every field holding an admissible value, whatever the verdict overall.
+
+        What save-as-defaults saves (§8). The gate in front of ``compute()`` is
+        not a gate in front of the Overlay: a half-filled form still has values
+        worth keeping, and saving three of five Inputs is exactly how a
+        partially-defaulted Applet becomes one that computes on open (§4.6).
+        """
+        return {f.declared.name: f.value for f in self.fields if f.value is not None}
+
+    @property
     def errors(self) -> list[str]:
         """The names of the Inputs the user must fix, in declared order."""
         return [f.declared.name for f in self.fields if f.error is not None]
@@ -126,6 +137,9 @@ def _field(declared: Input, submitted: Mapping[str, str] | None) -> Field:
     if declared.kind == BOOL:
         return _bool_field(declared, submitted)
     if submitted is None or declared.name not in submitted:
+        # `str`, never the Host's display formatting: this string goes back into
+        # a box the user can press Compute on, and `figure`'s six significant
+        # digits would quietly round a default before anything computed with it.
         raw = "" if declared.default is None else str(declared.default)
         return _validated(declared, raw) if raw else Field(declared)
     return _validated(declared, submitted[declared.name])

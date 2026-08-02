@@ -1,9 +1,16 @@
 """Launch and lifecycle (spec §2.3): fixed port, busy-port fallback, foreground."""
 
 import socket
+from pathlib import Path
 
 from workshop_helper import lifecycle
 from workshop_helper.discovery import Index
+from workshop_helper.overlay import OVERLAY_FILENAME, Overlay
+
+
+def _overlay() -> Overlay:
+    """An Overlay at a path nothing here reads or writes."""
+    return Overlay(Path(OVERLAY_FILENAME))
 
 
 def test_default_port_is_the_specs_free_choice() -> None:
@@ -43,7 +50,7 @@ def test_busy_port_opens_browser_and_exits_zero_without_serving(
         lifecycle, "run_server", lambda app, host, port: served.append(app)
     )
 
-    code = lifecycle.serve(Index(), lifecycle.DEFAULT_PORT)
+    code = lifecycle.serve(Index(), _overlay(), lifecycle.DEFAULT_PORT)
 
     out = capsys.readouterr().out
     assert code == 0
@@ -65,7 +72,7 @@ def test_free_port_serves_and_prints_the_startup_summary(monkeypatch, capsys) ->
         lifecycle, "run_server", lambda app, host, port: served.append(port)
     )
 
-    code = lifecycle.serve(Index(), 9999)
+    code = lifecycle.serve(Index(), _overlay(), 9999)
 
     out = capsys.readouterr().out
     assert code == 0

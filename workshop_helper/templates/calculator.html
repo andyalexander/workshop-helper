@@ -7,7 +7,7 @@
     <h2>{{ applet.name }}</h2>
     <p class="provenance">Root '{{ applet.root.name }}'{% if applet.author %}, by {{ applet.author }}{% endif %}</p>
     {% if applet.description %}<p class="description">{{ applet.description }}</p>{% endif %}
-    {{ forms.inputs(applet, mode, form) }}
+    {{ forms.inputs(applet, mode, form, calibration) }}
     <section id="result" class="result">
       {{ results.result(mode, computation) }}
     </section>

@@ -22,7 +22,7 @@ import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import NoReturn, TypeGuard
+from typing import NoReturn, TypeGuard, cast
 
 from workshop_utils import Cell
 
@@ -628,28 +628,37 @@ def _default(
     value = declaration.get("default")
     if value is None:
         return None
-
-    if declared.kind == BOOL:
-        if not isinstance(value, bool):
-            _reject_default(where, value, "must be true or false")
-        return value
-    if declared.kind == CHOICE:
-        if not isinstance(value, str):
-            _reject_default(where, value, "must be a string")
-        if value not in declared.choices:
-            _reject_default(where, value, "is not one of the choices")
-        return value
-    return _number_default(value, declared, where)
-
-
-def _number_default(value: object, declared: Input, where: str) -> float:
-    """Check a `number` Input's default against its own bounds and step (§4.3)."""
-    if not _is_number(value):
-        _reject_default(where, value, "must be a number")
-    violation = constraint_violation(declared, value)
+    violation = default_violation(declared, value)
     if violation is not None:
         _reject_default(where, value, violation)
-    return value
+    # Narrowed by the check above: every branch of `default_violation` that
+    # returns None has already established the kind.
+    return cast(str | float | bool, value)
+
+
+def default_violation(declared: Input, value: object) -> str | None:
+    """Why ``value`` is not admissible as ``declared``'s default, or ``None``.
+
+    One rule, two callers with opposite manners. The **author's** `default` is
+    checked at scan and an unusable one is a greyed card (§10.1); the **user's**
+    Overlay value is checked at read and an unusable one is dropped in silence,
+    with nobody at fault (§8, §10.4). Same question, so it is asked in one place
+    — a value the Host would refuse from a Manifest is not one it should quietly
+    accept from `overlay.json` merely because the file is its own.
+    """
+    if declared.kind == BOOL:
+        return None if isinstance(value, bool) else "must be true or false"
+    if declared.kind == CHOICE:
+        if not isinstance(value, str):
+            return "must be a string"
+        if value not in declared.choices:
+            return "is not one of the choices"
+        return None
+    # `nan` and `inf` are numbers TOML and JSON can both express and no
+    # measurement produces; no bound can be checked against them either.
+    if not _is_number(value) or not math.isfinite(value):
+        return "must be a number"
+    return constraint_violation(declared, value)
 
 
 def constraint_violation(declared: Input, value: float) -> str | None:
