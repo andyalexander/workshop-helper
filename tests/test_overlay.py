@@ -403,6 +403,42 @@ def test_a_calibration_override_is_stored_sparse(
 
 
 @pytest.mark.parametrize(
+    ("raw", "because"),
+    [
+        ("71,5", "a European decimal comma — the commonest way to mistype a figure"),
+        ("7l.5", "a letter for a digit"),
+        ("inf", "parses as a float, but is not a measurement"),
+        ("", "the box emptied: Reset clears a correction, a blank box does not"),
+    ],
+)
+def test_an_unreadable_calibration_box_keeps_the_figure_in_use(
+    tmp_path: Path, overlay: Overlay, raw: str, because: str
+) -> None:
+    """A typo must not delete the bench measurement it was typed over.
+
+    Sparseness (§8.1) and the Overlay's silence (§10.4) both encode as an absent
+    key, so a field whose parse failed has to fall back to the figure **in use**
+    rather than be left out of the row that replaces it. Left out, it is not
+    "unchanged" — it is deleted, and the measurement is gone with no message and
+    no undo.
+    """
+    client = _client(tmp_path, overlay)
+    data = {"mode": "single_bend", "size": "15mm", "angle": "45"}
+
+    client.post("/a/bender/calibration", data={**data, "cal:r_centreline": "71.5"})
+    assert overlay.calibration("bender") == {"15mm": {"r_centreline": 71.5}}
+
+    shown = client.post(
+        "/a/bender/calibration", data={**data, "cal:r_centreline": raw}
+    ).get_data(as_text=True)
+
+    assert overlay.calibration("bender") == {"15mm": {"r_centreline": 71.5}}, because
+    # §10.4's silence is only honest if the claim it makes is true: the box has
+    # to come back showing the figure that is still in force, not the author's.
+    assert 'value="71.5"' in shown
+
+
+@pytest.mark.parametrize(
     ("saved", "because"),
     [
         ({"28mm": {"r_centreline": 99.0}}, "orphaned key: the author dropped the size"),

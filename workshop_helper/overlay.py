@@ -257,17 +257,27 @@ def submitted_calibration(
     Each field is parsed as the kind the author wrote, because a calibration
     field has no declaration to check against — the names and the types are the
     author's own (§5.2), so the authored value *is* the schema. A value that
-    will not parse is left out rather than reported: the box still shows the
-    figure in use, and the Overlay's manner is silence (§10.4).
+    will not parse is not reported: the Overlay's manner is silence (§10.4).
+
+    **Silence means the figure in use stands, not that the field is absent.**
+    The row returned here *replaces* the stored one, so a field left out is
+    deleted rather than left alone — and a mistyped box would take the bench
+    measurement it was typed over with it, with no message and no undo. Falling
+    back to ``field.value`` is what makes §10.4's promise true: the box comes
+    back showing the figure still in force.
 
     Keeping only the differences is §8.1's sparseness. Store the whole slice and
     a field the user never touched is pinned to today's authored value forever,
-    which is the exact failure field-level merging exists to prevent.
+    which is the exact failure field-level merging exists to prevent. The two
+    rules meet cleanly here because ``field.value`` is the merged figure: where
+    there is no override to preserve it already equals ``authored``, and the
+    same comparison drops it.
     """
     corrected: dict[str, Cell] = {}
     for field in view.fields:
-        value = _parsed(field, submitted)
-        if value is not None and value != field.authored:
+        parsed = _parsed(field, submitted)
+        value = field.value if parsed is None else parsed
+        if value != field.authored:
             corrected[field.name] = value
     return corrected
 
