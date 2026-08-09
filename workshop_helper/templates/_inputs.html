@@ -108,7 +108,10 @@
         hx-post="{{ defaults_action }}"
         hx-target="#result"
         hx-include="#inputs"
-        hx-vals='{"{{ reset_field }}": "all"}'
+        {# Both halves are the Host's own constants, so this one was never
+           reachable by author data — serialised anyway, so that no reader has
+           to work out which `hx-vals` on the page is the safe one. #}
+        hx-vals='{{ {reset_field: "all"} | tojson }}'
       >Reset to the author's defaults</button>
     </div>
     {% if calibration %}{{ calibrations.calibration(applet, calibration) }}{% endif %}

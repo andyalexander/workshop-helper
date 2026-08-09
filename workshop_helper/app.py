@@ -44,7 +44,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from werkzeug.wrappers import Response
+from werkzeug.wrappers import Request, Response
 
 from workshop_helper.browse import (
     ROOT_PARAM,
@@ -85,6 +85,14 @@ MODE_FIELD = "mode_field"
 RESET = "reset"
 RESET_FIELD = "reset_field"
 
+# Methods that change nothing, so nothing needs proving about where they came
+# from. Everything else must show it came from the Host's own pages.
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+SAME_ORIGIN = "same-origin"
+# A request the user began themselves — a typed URL, a bookmark, a drag onto the
+# window. No other site is involved, so it is not the case this gate is for.
+NO_ORIGIN = "none"
+
 
 def asset_base(applet: Applet) -> str:
     """Where ``applet``'s own folder is mounted, for scoping relative URLs.
@@ -98,6 +106,26 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
     """Build the Host's Flask application over a resolved ``index``."""
     app = Flask(__name__)
     app.config["INDEX"] = index
+
+    @app.before_request
+    def same_origin_only() -> None:
+        """Refuse any write that cannot show it came from the Host's own pages.
+
+        **Binding to 127.0.0.1 is not a mitigation for this class.** The request
+        is made by the user's own browser, which is inside that boundary; a plain
+        form post triggers no preflight, and the Host holds no session it could
+        withhold. So any page the user happens to have open could otherwise
+        rewrite calibration — figures measured off their own kit, which come
+        back out as marks on a pipe.
+
+        A gate over every unsafe method rather than a decorator per route: a
+        write route added later is then covered by construction, instead of by
+        whoever adds it remembering. That is the failure this ticket came from.
+        """
+        if request.method not in SAFE_METHODS and not _same_origin(request):
+            # Deliberately bare: §10's error surface names an author to blame,
+            # and no Applet misbehaved here.
+            abort(403)
 
     def require_applet(applet_id: str) -> Applet:
         applet = index.applet(applet_id)
@@ -162,7 +190,7 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
     def applet_page(applet_id: str) -> str:
         applet = require_applet(applet_id)
         if applet.type != DOCUMENTATION:
-            return _page("calculator.html", **_calculator(applet, None))
+            return _page("calculator.html", **_calculator(applet, None, None))
         return _page(
             "documentation.html",
             applet=applet,
@@ -193,7 +221,10 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
         if RESET in request.form:
             overlay.clear_defaults(applet_id)
             # Answered as if freshly opened — seeing the author's figures back in
-            # the boxes is the whole point of the reset.
+            # the boxes is the whole point of the reset. The **mode** survives it
+            # regardless: a reset is about the values, and the mode is not one of
+            # them. Dropping it would change what exists on screen (§4.5) under
+            # someone who asked only for the author's numbers back.
             return _answer(authored, submitted=None)
 
         applet = overlaid(authored, overlay)
@@ -213,14 +244,24 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
         mode = applet.mode(request.form.get(MODE))
         form = build_form(mode.inputs, request.form)
         view = calibration_view(authored.calibration, applet.calibration, form)
-        if view is not None:
-            field = request.form.get(RESET)
-            if field is None:
-                overlay.save_calibration(
-                    applet_id, view.key, submitted_calibration(view, request.form)
-                )
-            else:
-                overlay.reset_calibration(applet_id, view.key, field)
+        if view is None:
+            # Nothing to write to: either this Applet declares no calibration at
+            # all, or the submitted key resolves to no slice. Neither is
+            # reachable from the Host's own pages — the disclosure is rendered
+            # from this same view, and `keyed_by` is checked at scan to be a
+            # `choice` whose choices are exactly the calibration keys, rendered
+            # as a select with no blank option. So the request did not come from
+            # the disclosure, and answering 200 would report a save that did not
+            # happen.
+            abort(400)
+
+        field = request.form.get(RESET)
+        if field is None:
+            overlay.save_calibration(
+                applet_id, view.key, submitted_calibration(view, request.form)
+            )
+        else:
+            overlay.reset_calibration(applet_id, view.key, field)
         return _answer(authored, request.form)
 
     def _answer(authored: Applet, submitted: Mapping[str, str] | None) -> str:
@@ -230,25 +271,35 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
         calibration lands on screen through the same swap a Compute does — and
         the disclosure comes back with the form, out of band, because a reset
         changes a box that is not inside the Result fragment.
+
+        Every caller is a POST, so the mode is read from the form here — in one
+        place rather than four. It is read **separately from** ``submitted``
+        because a reset passes no values and must still come back in the mode it
+        was pressed in.
         """
-        context = _calculator(authored, submitted)
+        context = _calculator(authored, submitted, request.form.get(MODE))
         if request.headers.get(HTMX_HEADER) is None:
             return _page("calculator.html", **context)
         return render_template("_compute.html", **context)
 
     def _calculator(
-        authored: Applet, submitted: Mapping[str, str] | None
+        authored: Applet, submitted: Mapping[str, str] | None, mode_name: str | None
     ) -> dict[str, object]:
         """Everything the calculator page shows, as *this user* sees it (§8).
 
         ``submitted is None`` is the Applet being opened, where a Result appears
         only if every Input has a default — the user's saved ones included, which
         is what makes compute-on-open user-dependent (§4.6).
+
+        ``mode_name`` is a **separate argument rather than read out of**
+        ``submitted``, because the two are independent: a reset throws the values
+        away and keeps the mode. A mode decides *what exists* (§4.5), so it
+        outlives an operation that is only about what those things hold.
         """
         applet = overlaid(authored, overlay)
         # The selector is the Host's own field, derived from `[modes.*]`; there
         # is no `mode` Input for it to collide with (§4.5).
-        mode = applet.mode(None if submitted is None else submitted.get(MODE))
+        mode = applet.mode(mode_name)
         form = build_form(mode.inputs, submitted)
         computation = Computation()
         if submitted is not None or computes_on_open(mode.inputs):
@@ -288,6 +339,29 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
     app.jinja_env.globals[MODE_FIELD] = MODE
     app.jinja_env.globals[RESET_FIELD] = RESET
     return app
+
+
+def _same_origin(incoming: Request) -> bool:
+    """Whether ``incoming`` can show it came from the page the Host served.
+
+    ``Sec-Fetch-Site`` is the browser's own account of where the request began
+    and cannot be set from script, so it is preferred; ``Origin`` is the older
+    signal and is compared against the host that answered.
+
+    **Neither header present means refuse.** Absence is not evidence of
+    same-origin, and every browser that could be turned against the Host has
+    sent ``Sec-Fetch-Site`` since around 2020 — so trusting silence would leave
+    the gate open to exactly the ancient client most likely to be used against
+    it. A curl against a write route has to say so explicitly, which is a fair
+    price for a tool whose stored numbers are measured off physical kit.
+    """
+    site = incoming.headers.get("Sec-Fetch-Site")
+    if site is not None:
+        return site in (SAME_ORIGIN, NO_ORIGIN)
+    origin = incoming.headers.get("Origin")
+    if origin is not None:
+        return origin == f"{incoming.scheme}://{incoming.host}"
+    return False
 
 
 def _keep(url: str) -> str:

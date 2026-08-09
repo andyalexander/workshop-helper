@@ -52,7 +52,13 @@
           hx-post="{{ action }}"
           hx-target="#result"
           hx-include="#inputs"
-          hx-vals='{"{{ reset_field }}": "{{ field.name }}"}'
+          {# A JSON attribute built by a JSON serialiser. Interpolated by hand,
+             Jinja's HTML escaper turns a `"` in the author's field name into
+             `&#34;`, the HTML parser turns that back into a real quote inside
+             the attribute, and htmx is handed malformed JSON it can only
+             discard. The single quotes around it are what `tojson`'s double
+             quotes need. #}
+          hx-vals='{{ {reset_field: field.name} | tojson }}'
         >Reset to the author's value</button>
       </div>
     {% endfor %}
