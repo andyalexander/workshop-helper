@@ -26,10 +26,20 @@ the drop rule *is* the migration strategy — and nothing the Host cannot
 reconstruct from Manifests lives only in this file. The file is re-read on every
 lookup rather than cached, which is what makes that invariant observable while
 the Host is running: delete it and the next page is pristine.
+
+**The invariant licenses the user discarding this file, not the Host.** That is
+what the write path is built around: it is atomic, so a failure partway cannot
+leave a torn file that reads back as "no overrides"; it is serialised, so two of
+Flask's request threads cannot silently undo each other; and a file it cannot
+parse is moved aside rather than replaced, so a save is never the thing that
+destroys the evidence. Reading stays as tolerant as it ever was.
 """
 
 import json
 import math
+import os
+import tempfile
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -56,6 +66,12 @@ UNKEYED = ""
 # `r_centreline` may be both.
 FIELD_PREFIX = "cal:"
 
+# What an unreadable file is moved aside to before a write replaces it. Reading
+# stays tolerant (§10.4), but the bytes survive: a user's calibration figures
+# were measured off physical kit and are not reconstructible from anything the
+# Host holds, so the recovery path must not write over the evidence.
+UNREADABLE_SUFFIX = ".unreadable"
+
 
 class Overlay:
     """Every user override, read from and written to one JSON file.
@@ -67,6 +83,14 @@ class Overlay:
 
     def __init__(self, path: Path) -> None:
         self.path = path
+        # Flask serves on threads (`app.run` defaults `threaded=True`), so two
+        # overlapping saves would otherwise both read the old file and the
+        # second would silently undo the first. **Cross-process is knowingly not
+        # covered**: `--port` makes two Hosts over one home possible, but with
+        # the write atomic the worst that collision can do is lose an update,
+        # never tear the file, and closing it would cost a platform-specific
+        # file lock and a stale-lock story for a millisecond-wide window.
+        self._lock = threading.Lock()
 
     # --- reading ---------------------------------------------------------
 
@@ -129,15 +153,42 @@ class Overlay:
     def _read(self) -> dict[str, Any]:
         """The whole file, or nothing at all.
 
-        Missing, unreadable or unparseable are one case and none of them is an
-        error: the Overlay is discardable by definition, so a file the Host
-        cannot read is a Host with no overrides (§8.2, §10.4).
+        Missing, unreadable or unparseable are one case *to a reader* and none
+        of them is an error: the Overlay is discardable by definition, so a file
+        the Host cannot read is a Host with no overrides (§8.2, §10.4).
         """
         try:
-            loaded = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            entries = self._loaded()
+        except OSError:
             return {}
-        return loaded if isinstance(loaded, dict) else {}
+        return {} if entries is None else entries
+
+    def _loaded(self) -> dict[str, Any] | None:
+        """The file's entries, ``{}`` when absent, ``None`` when **damaged**.
+
+        Writers need a distinction readers do not, and it is a three-way one.
+        *Absent* is the ordinary case and means no overrides. *Damaged* means the
+        bytes are there but say nothing usable, which is the case a save must
+        preserve rather than build over — §8.2 licenses *the user* discarding
+        this file, not the Host doing it on their behalf without a word.
+
+        *Unreadable* is neither, so it raises: a permissions problem or a failing
+        disk says nothing about the contents, and treating it as damage would
+        move a perfectly good file aside on the strength of a transient error.
+        Only :meth:`_read` swallows that, because a reader has a pristine page to
+        render either way.
+        """
+        try:
+            text = self.path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return {}
+        except UnicodeDecodeError:
+            return None
+        try:
+            loaded = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+        return loaded if isinstance(loaded, dict) else None
 
     def _kind(self, applet_id: str, kind: str) -> dict[str, Any]:
         """One Applet's entries under one override kind, tolerantly."""
@@ -154,23 +205,81 @@ class Overlay:
         are never pruned** (§8): an Applet missing from this scan may simply have
         an unmounted Root, and pruning would destroy defaults for something that
         is coming back.
-        """
-        entries = self._read()
-        applet = entries.get(applet_id)
-        if not isinstance(applet, dict):
-            applet = {}
-        # An emptied kind is removed rather than left as `{}`, so "saved nothing"
-        # and "never saved" are the same file — the discardable invariant read
-        # one Applet at a time.
-        applet = {**applet, kind: dict(table)} if table else _without(applet, kind)
-        entries = (
-            {**entries, applet_id: applet} if applet else _without(entries, applet_id)
-        )
 
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(entries, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        The read and the write are one critical section, so a save racing
+        another save cannot be built on a file the other has already replaced.
+        """
+        with self._lock:
+            entries = self._loaded()
+            if entries is None:
+                # Damaged, and about to be replaced — keep the bytes first.
+                self.path.rename(_unused_name(self.path, UNREADABLE_SUFFIX))
+                entries = {}
+
+            applet = entries.get(applet_id)
+            if not isinstance(applet, dict):
+                applet = {}
+            # An emptied kind is removed rather than left as `{}`, so "saved
+            # nothing" and "never saved" are the same file — the discardable
+            # invariant read one Applet at a time.
+            applet = {**applet, kind: dict(table)} if table else _without(applet, kind)
+            entries = (
+                {**entries, applet_id: applet}
+                if applet
+                else _without(entries, applet_id)
+            )
+
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            _write_atomically(
+                self.path, json.dumps(entries, indent=2, sort_keys=True) + "\n"
+            )
+
+
+def _unused_name(path: Path, suffix: str) -> Path:
+    """``path`` plus ``suffix``, numbered if something is already sitting there.
+
+    ``Path.rename`` replaces its target silently, so preserving a damaged file
+    onto a fixed name would let a second corruption destroy what the first one
+    saved — the very thing moving it aside exists to prevent.
+    """
+    candidate = path.with_name(path.name + suffix)
+    attempt = 1
+    while candidate.exists():
+        candidate = path.with_name(f"{path.name}{suffix}.{attempt}")
+        attempt += 1
+    return candidate
+
+
+def _write_atomically(path: Path, text: str) -> None:
+    """Replace ``path``'s contents, or leave them exactly as they were.
+
+    Writing in place would truncate first, so a crash, a Ctrl-C or a full disk
+    between the truncate and the flush would leave a partial file — and a
+    partial file does not read as an error, it reads as *no overrides at all*
+    (:meth:`Overlay._read`). Every Applet's saved defaults and calibration would
+    vanish at once, with the next ordinary save making it permanent.
+
+    So: write a sibling, force it to disk, then rename it over the target.
+    ``os.replace`` is atomic within a filesystem and the sibling placement is
+    what keeps both on one, so a reader sees the old file or the new one and
+    never a half-written one.
+    """
+    handle, temporary = tempfile.mkstemp(
+        dir=path.parent, prefix=path.name, suffix=".tmp"
+    )
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as opened:
+            opened.write(text)
+            opened.flush()
+            # Ordering only reaches the disk if we ask: without the fsync the
+            # rename can land before the bytes it is meant to be publishing.
+            os.fsync(opened.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        # A failed write leaves the target untouched, so it must not leave a
+        # stray sibling either.
+        Path(temporary).unlink(missing_ok=True)
+        raise
 
 
 def overlaid(applet: Applet, overlay: Overlay) -> Applet:

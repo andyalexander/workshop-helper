@@ -196,3 +196,81 @@ def test_faulty_cards_do_not_make_an_empty_library_look_stocked(
 
     assert "No Applets" in body
     assert "Pipe-bender setback" in body
+
+
+# --- The same-origin gate (#44) ----------------------------------------------
+#
+# Binding to 127.0.0.1 is not a mitigation for this class: the request comes
+# from the user's own browser, which is inside the boundary. A plain form post
+# triggers no preflight and the Host holds no session to withhold, so any page
+# the user has open could otherwise rewrite calibration measured off their kit.
+#
+# These post to an Applet that does not exist, so a 404 is the gate *passing* —
+# the request reached the view, which is the only thing being asserted.
+
+
+# The three write routes the ticket names, so the gate is pinned on each rather
+# than on whichever one happened to be handy.
+WRITE_ROUTES = ["compute", "defaults", "calibration"]
+
+
+@pytest.mark.parametrize("route", WRITE_ROUTES)
+@pytest.mark.parametrize(
+    ("headers", "because"),
+    [
+        ({"Sec-Fetch-Site": "cross-site"}, "the browser says it came from elsewhere"),
+        ({"Sec-Fetch-Site": "same-site"}, "a sibling origin is still not this one"),
+        ({"Origin": "http://evil.example"}, "the origin is not the served host"),
+    ],
+)
+def test_a_cross_origin_write_is_refused(
+    headers: dict[str, str], because: str, route: str
+) -> None:
+    # `same_origin=False`, so the only origin headers on the request are the
+    # ones under test — otherwise the helper's default would vouch for it.
+    answer = client_for(Index(), same_origin=False).post(
+        f"/a/nope/{route}", headers=headers
+    )
+
+    assert answer.status_code == 403
+
+
+@pytest.mark.parametrize("route", WRITE_ROUTES)
+def test_a_write_carrying_no_origin_headers_at_all_is_refused(route: str) -> None:
+    """Absence proves nothing, so it cannot be treated as proof of same-origin.
+
+    Every browser that could be turned against the Host has sent
+    ``Sec-Fetch-Site`` since about 2020, so failing closed costs nothing a
+    browser can feel and shuts the gate on the clients most at risk.
+    """
+    answer = client_for(Index(), same_origin=False).post(f"/a/nope/{route}")
+
+    assert answer.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("headers", "because"),
+    [
+        ({"Sec-Fetch-Site": "same-origin"}, "the browser vouches for it"),
+        ({"Sec-Fetch-Site": "none"}, "the user typed it or opened a bookmark"),
+        ({"Origin": "http://localhost"}, "the origin is the host that served it"),
+    ],
+)
+def test_a_same_origin_write_reaches_the_route(
+    headers: dict[str, str], because: str
+) -> None:
+    """404, not 403: the gate let it through and the view found no such Applet."""
+    answer = client_for(Index(), same_origin=False).post(
+        "/a/nope/compute", headers=headers
+    )
+
+    assert answer.status_code == 404
+
+
+def test_reading_is_never_gated() -> None:
+    """A safe method changes nothing, so a cross-site GET is simply a GET."""
+    answer = client_for(Index(), same_origin=False).get(
+        "/", headers={"Sec-Fetch-Site": "cross-site"}
+    )
+
+    assert answer.status_code == 200
