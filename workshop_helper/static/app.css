@@ -1,44 +1,80 @@
-/* Minimal shell styling: the facet sidebar, the card grid, the greyed card, a
-   readable documentation page, and the calculator's form (spec §9). */
+/* Shell styling: the facet sidebar, the Applet index, the greyed row, a
+   readable documentation page, and the calculator's form (spec §9).
+
+   One palette for the whole Host — warm paper, ink, and a single brass accent
+   that marks the Applet type, the live facet and the focused control. Colour is
+   never the only signal: every place it carries meaning, a word or a badge says
+   the same thing (#11). */
 
 :root {
-  --ink: #1c1c1c;
-  --muted: #5d5d5d;
-  --rule: #d8d5cf;
-  --paper: #fbfaf8;
+  --paper: #f7f4ee;
+  --card: #fffdf9;
+  --ink: #1b1815;
+  --body: #3d3831;
+  --muted: #6f675c;
+  --rule: #e3dcd0;
+  --brass: #9a5b12;
+  --brass-soft: #f3e6d3;
+  --brass-edge: #dcc39a;
   --grey: #6b6b6b;
-  --grey-paper: #f2f1ee;
-  --accent: #1f5c8b;
+  --grey-paper: #f1eee8;
+  --alarm: #a4331f;
   --own: #6b3fa0;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 body {
-  margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Links carry their meaning from where they sit, not from being blue: a card
+   title is a title, a crumb is a crumb. The one exception is prose — a link
+   inside a sentence has nothing but its own styling to announce it, so those
+   are underlined explicitly below. */
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
 header {
-  border-bottom: 1px solid var(--rule);
-  padding: 0.75rem 1.5rem;
+  align-items: baseline;
+  background: var(--ink);
+  color: var(--paper);
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.85rem 1.75rem;
 }
 
 header h1 {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
   margin: 0;
+  text-transform: uppercase;
 }
 
-header a {
-  color: inherit;
-  text-decoration: none;
+header h1 b {
+  color: #e0a45c;
+  font-weight: 650;
+}
+
+header .tagline {
+  color: #a49a8c;
+  font-size: 0.8rem;
 }
 
 main {
   flex: 1;
   max-width: 60rem;
   min-width: 0;
-  padding: 1.5rem;
+  padding: 2rem 2rem 4rem 0;
 }
 
 /* The facet sidebar is chrome: it sits beside the content on Browse and on the
@@ -50,18 +86,19 @@ main {
 .shell {
   display: flex;
   align-items: flex-start;
-  gap: 1.5rem;
+  gap: 2.5rem;
 }
 
 .sidebar {
   border-right: 1px solid var(--rule);
-  flex: 0 0 15rem;
-  padding: 1.5rem 0 1.5rem 1.5rem;
+  flex: 0 0 16rem;
+  min-height: 100vh;
+  padding: 1.75rem 1.5rem 3rem 1.75rem;
   position: sticky;
   top: 0;
 }
 
-@media (max-width: 48rem) {
+@media (max-width: 52rem) {
   .shell {
     display: block;
   }
@@ -69,8 +106,13 @@ main {
   .sidebar {
     border-bottom: 1px solid var(--rule);
     border-right: 0;
-    padding: 1rem 1.5rem;
+    min-height: 0;
+    padding: 1.25rem 1.5rem;
     position: static;
+  }
+
+  main {
+    padding: 1.5rem;
   }
 }
 
@@ -80,23 +122,30 @@ main {
 }
 
 .filter input[type="search"] {
+  background: #fff;
   border: 1px solid var(--rule);
-  border-radius: 4px;
+  border-radius: 7px;
   font: inherit;
+  font-size: 0.9rem;
   min-width: 0;
-  padding: 0.25rem 0.5rem;
+  padding: 0.45rem 0.65rem;
   width: 100%;
 }
 
+.filter input:focus-visible {
+  border-color: var(--brass);
+  outline: 2px solid var(--brass-soft);
+}
+
 .filter button {
-  background: none;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  color: var(--muted);
+  background: var(--ink);
+  border: 0;
+  border-radius: 7px;
+  color: var(--paper);
   cursor: pointer;
   font: inherit;
   font-size: 0.8rem;
-  padding: 0.25rem 0.5rem;
+  padding: 0 0.8rem;
 }
 
 .offscreen {
@@ -111,43 +160,69 @@ main {
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: 0.35rem;
   list-style: none;
-  margin: 0.6rem 0 0;
+  margin: 0.75rem 0 0;
   padding: 0;
 }
 
 .chip {
-  background: var(--accent);
+  align-items: center;
+  background: var(--brass);
   border-radius: 999px;
   color: #fff;
   display: inline-flex;
   font-size: 0.75rem;
-  gap: 0.35rem;
-  padding: 0.1rem 0.55rem;
-  text-decoration: none;
+  gap: 0.4rem;
+  padding: 0.15rem 0.6rem;
+}
+
+/* One way out of any filter, beside the chips that made it. Quieter than the
+   chips — undoing is not the thing the eye should land on — and rendered only
+   when there is something to clear, so it is never a dead control. It is a link
+   rather than a button because clearing a filter *is* the empty URL: no
+   JavaScript, and it covers the text and Root filters that leave no chip to
+   unpick. */
+.clear {
+  align-items: center;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.76rem;
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+  padding: 0.18rem 0.55rem;
+}
+
+.clear:hover {
+  background: #fff;
+  border-color: var(--brass);
+  color: var(--brass);
 }
 
 .hint {
   color: var(--muted);
   font-size: 0.78rem;
-  margin: 0.6rem 0 0;
+  margin: 0.7rem 0 0;
 }
 
 kbd {
+  background: #fff;
   border: 1px solid var(--rule);
-  border-radius: 3px;
-  font-size: 0.9em;
-  padding: 0 0.2rem;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  padding: 0 0.25rem;
+  white-space: nowrap;
 }
 
 .facet-head {
-  border-bottom: 1px solid var(--rule);
   color: var(--muted);
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  margin: 1.1rem 0 0.3rem;
-  padding-bottom: 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  margin: 1.75rem 0 0.5rem;
   text-transform: uppercase;
 }
 
@@ -158,36 +233,39 @@ kbd {
 }
 
 .facet {
-  border-radius: 4px;
-  color: inherit;
+  border-radius: 7px;
   display: flex;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   gap: 0.5rem;
   justify-content: space-between;
-  padding: 0.15rem 0.35rem;
-  text-decoration: none;
+  padding: 0.28rem 0.5rem;
 }
 
 .facet:hover {
-  background: var(--grey-paper);
+  background: var(--brass-soft);
 }
 
 .facet.on {
-  background: var(--grey-paper);
-  box-shadow: inset 2px 0 0 var(--accent);
+  background: var(--brass-soft);
+  color: var(--brass);
   font-weight: 600;
 }
 
 /* Said in words, not in a "0": what a candidate would leave, before it is
    picked. The dimming only reinforces the sentence. */
 .facet.dead {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .facet .leaves {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.facet.on .leaves {
+  color: var(--brass);
 }
 
 /* Own-Root marker: the badge carries it, the colour only reinforces — never
@@ -196,8 +274,8 @@ kbd {
   border: 1px solid var(--own);
   border-radius: 3px;
   color: var(--own);
-  font-size: 0.62rem;
-  letter-spacing: 0.04em;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
   padding: 0 0.2rem;
   text-transform: uppercase;
   vertical-align: 0.1em;
@@ -205,48 +283,114 @@ kbd {
 
 .count {
   color: var(--muted);
-  font-size: 0.8rem;
-  margin: 0 0 0.8rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.75rem;
+  text-transform: uppercase;
 }
 
 .crumb {
   color: var(--muted);
-  font-size: 0.8rem;
-  margin: 0 0 0.6rem;
+  font-size: 0.82rem;
+  margin: 0 0 0.75rem;
+}
+
+/* The one link on the page that sits in a line of text rather than titling a
+   thing, so it is the one that has to announce itself. Stated here rather than
+   left to `.documentation a` below, which would otherwise style the crumb on a
+   documentation page and not on a calculator's. */
+.crumb a {
+  color: var(--brass);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .recover {
   white-space: nowrap;
 }
 
-.card-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+/* The Applet index (spec §9). A list rather than a grid: an Applet is one line
+   of reading, and a shelf of fifty has to stay scannable. The rows share one
+   surface so the warm paper has an edge to push against, and the whole row is
+   the target — the title only names it. */
+
+.index {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgb(27 24 21 / 4%);
   list-style: none;
   margin: 0;
+  overflow: hidden;
   padding: 0;
 }
 
-.card {
-  background: #fff;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  padding: 0.9rem 1rem;
+.row {
+  position: relative;
+  transition: background 0.12s;
 }
 
-.card h2 {
-  font-size: 1rem;
-  margin: 0 0 0.4rem;
+.row + .row {
+  border-top: 1px solid var(--rule);
+}
+
+.row:hover {
+  background: var(--brass-soft);
+}
+
+.row-inner {
+  align-items: baseline;
+  display: grid;
+  gap: 0.35rem 1.5rem;
+  grid-template-columns: minmax(0, 1fr) 10rem;
+  padding: 1rem 1.35rem 0.95rem;
+}
+
+.row h2 {
+  font-size: 1.12rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.2rem;
+}
+
+/* The title's link is stretched over the whole row, so the target is the row
+   and not the handful of characters in its name. */
+.row h2 a::after {
+  content: "";
+  inset: 0;
+  position: absolute;
+}
+
+.row:hover h2 {
+  color: var(--brass);
 }
 
 .description {
-  margin: 0 0 0.5rem;
+  color: var(--body);
+  font-size: 0.93rem;
+  margin: 0;
+}
+
+.meta {
+  margin: 0;
+  text-align: right;
+}
+
+/* The Applet type, said in a word. It is the one thing that changes what the
+   page behind the row *is*, so it gets the accent. */
+.kicker {
+  color: var(--brass);
+  display: block;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  margin-bottom: 0.15rem;
+  text-transform: uppercase;
 }
 
 .provenance {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   margin: 0;
 }
 
@@ -254,45 +398,76 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
+  grid-column: 1;
   list-style: none;
   margin: 0.6rem 0 0;
   padding: 0;
 }
 
 .tag {
-  background: #f0eee9;
+  background: var(--paper);
+  border: 1px solid var(--rule);
   border-radius: 999px;
-  font-size: 0.75rem;
-  padding: 0.1rem 0.55rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  padding: 0.05rem 0.55rem;
 }
 
-/* A tag the filter is on: the card shows *why* it is here. */
+/* A tag the filter is on: the row shows *why* it is here. */
 .tag.on {
-  box-shadow: inset 0 0 0 1px var(--accent);
-  color: var(--accent);
+  background: var(--brass-soft);
+  border-color: var(--brass-edge);
+  color: var(--brass);
+}
+
+.empty-state {
+  color: var(--muted);
+}
+
+.empty-state a {
+  color: var(--brass);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 52rem) {
+  .row-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .meta {
+    text-align: left;
+  }
+
+  .kicker {
+    display: inline;
+    margin-right: 0.5rem;
+  }
 }
 
 /* A faulty Applet is greyed and un-openable (spec §10.1). Greyed is carried by
-   both flatter contrast and the ⚠ in the blame line, never colour alone. */
+   both flatter contrast and the ⚠ in the blame line, never colour alone. Its
+   rows sit in their own panel below the working ones: still on screen, plainly
+   not part of the shelf. */
 
 .faults {
-  margin-top: 1rem;
-}
-
-.card.faulty {
   background: var(--grey-paper);
   border-style: dashed;
+  margin-top: 1.5rem;
+}
+
+.row.faulty {
   color: var(--grey);
+}
+
+.row.faulty:hover {
+  background: none;
 }
 
 .blame {
   font-size: 1rem;
   font-weight: 600;
   margin: 0;
-}
-
-.card.faulty .provenance {
-  margin-top: 0.5rem;
 }
 
 .error-surface summary {
@@ -310,15 +485,69 @@ pre.details {
   word-break: break-word;
 }
 
+/* The Applet page: the author's own words and markup, set to read. */
+
+/* Two class names deep on purpose: the author's own headings are styled below
+   by element, and the Applet's name has to outrank whatever they opened with. */
+.applet .applet-title {
+  font-size: 1.6rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.25rem;
+}
+
+.applet > .description {
+  font-size: 1.02rem;
+  margin: 0.6rem 0 0;
+  max-width: 42rem;
+}
+
+.documentation {
+  max-width: 42rem;
+}
+
+.documentation a {
+  color: var(--brass);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The author's headings are sized by the Host, exactly as their SVG and their
+   numbers are (§4.5): the Applet's name titles the page, and a heading inside
+   the body is a heading *within* it however deep the author started. */
+.documentation h1 {
+  font-size: 1.25rem;
+  margin: 1.9rem 0 0.5rem;
+}
+
+.documentation h2 {
+  font-size: 1.08rem;
+  font-weight: 650;
+  margin: 1.6rem 0 0.4rem;
+}
+
+.documentation h3 {
+  font-size: 0.98rem;
+  margin: 1.3rem 0 0.35rem;
+}
+
 .documentation table {
   border-collapse: collapse;
+  font-size: 0.93rem;
 }
 
 .documentation th,
 .documentation td {
   border: 1px solid var(--rule);
-  padding: 0.25rem 0.6rem;
+  padding: 0.3rem 0.7rem;
   text-align: left;
+}
+
+.documentation th {
+  background: var(--grey-paper);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .documentation img,
@@ -326,18 +555,27 @@ pre.details {
   max-width: 100%;
 }
 
+.documentation code {
+  background: var(--grey-paper);
+  border-radius: 4px;
+  font-size: 0.9em;
+  padding: 0.05rem 0.3rem;
+}
+
 /* The calculator: a form, then the Result region the round-trip swaps
    (spec §2.8, §6). The primary Output is large and the rest are small — which
    one that is comes from the Manifest, never from this file (§4.5). */
 
 .inputs {
+  background: var(--card);
   border: 1px solid var(--rule);
-  border-radius: 6px;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgb(27 24 21 / 4%);
   display: flex;
   flex-wrap: wrap;
   gap: 0.9rem 1.2rem;
-  margin: 1rem 0;
-  padding: 0.9rem 1rem;
+  margin: 1.25rem 0;
+  padding: 1.1rem 1.25rem;
 }
 
 .field {
@@ -354,11 +592,18 @@ pre.details {
 
 .field input[type="number"],
 .field select {
+  background: #fff;
   border: 1px solid var(--rule);
-  border-radius: 4px;
+  border-radius: 6px;
   font: inherit;
-  padding: 0.2rem 0.4rem;
+  padding: 0.28rem 0.45rem;
   width: 7rem;
+}
+
+.field input:focus-visible,
+.field select:focus-visible {
+  border-color: var(--brass);
+  outline: 2px solid var(--brass-soft);
 }
 
 .field .unit {
@@ -368,12 +613,12 @@ pre.details {
 
 .field.invalid input,
 .field.invalid select {
-  border-color: #a4331f;
+  border-color: var(--alarm);
 }
 
 /* Carried by the ⚠ and the wording, never by colour alone. */
 .field-error {
-  color: #a4331f;
+  color: var(--alarm);
   flex-basis: 100%;
   font-size: 0.8rem;
   margin: 0;
@@ -387,11 +632,11 @@ pre.details {
   align-self: center;
   background: var(--ink);
   border: 0;
-  border-radius: 4px;
+  border-radius: 7px;
   color: var(--paper);
   cursor: pointer;
   font: inherit;
-  padding: 0.3rem 1rem;
+  padding: 0.38rem 1.1rem;
 }
 
 /* The save-as-defaults strip, and the Calibration disclosure below it — the same
@@ -408,7 +653,7 @@ pre.details {
   border-top: 1px solid var(--rule);
   display: flex;
   gap: 0.6rem;
-  padding-top: 0.75rem;
+  padding-top: 0.85rem;
 }
 
 /* A reset is an undo, not an action: quieter than the button beside it, and
@@ -431,32 +676,37 @@ pre.details {
 
 .calibration input[type="text"],
 .calibration input[type="number"] {
+  background: #fff;
   border: 1px solid var(--rule);
-  border-radius: 4px;
+  border-radius: 6px;
   font: inherit;
-  padding: 0.2rem 0.4rem;
+  padding: 0.28rem 0.45rem;
   width: 7rem;
 }
 
 .outputs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 2rem;
-  margin: 1rem 0;
+  gap: 0.75rem 2.5rem;
+  margin: 1.25rem 0;
 }
 
 .output dt {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .output dd {
   font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
   margin: 0;
 }
 
 .output.primary dd {
-  font-size: 2.2rem;
+  font-size: 2.4rem;
+  letter-spacing: -0.02em;
   line-height: 1.15;
 }
 
@@ -470,16 +720,31 @@ pre.details {
 }
 
 .result-table {
+  background: var(--card);
+  border: 1px solid var(--rule);
   border-collapse: collapse;
+  border-radius: 10px;
   font-size: 0.9rem;
+  overflow: hidden;
   width: 100%;
 }
 
 .result-table th,
 .result-table td {
   border-bottom: 1px solid var(--rule);
-  padding: 0.25rem 0.6rem;
+  padding: 0.35rem 0.7rem;
   text-align: left;
+}
+
+.result-table th {
+  color: var(--muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.result-table tr:last-child td {
+  border-bottom: 0;
 }
 
 /* A tied group is the Applet declining honestly (§11.3): the rows stay
@@ -495,7 +760,7 @@ pre.details {
 }
 
 .graphic {
-  margin: 1rem 0;
+  margin: 1.25rem 0;
 }
 
 /* The Applet's SVG carries a viewBox and no size of its own — the Host decides
@@ -512,4 +777,11 @@ pre.details {
   border-right: 1px solid var(--rule);
   margin-right: 0.4rem;
   padding-right: 1.2rem;
+}
+
+/* Inputs are numbers and share one width so the form reads as a row; a Mode is
+   the author's own words and has to fit them — "Single bend" truncated to
+   "Single ben" is the Host mangling the Manifest. */
+.field.mode select {
+  width: auto;
 }

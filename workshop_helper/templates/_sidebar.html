@@ -38,17 +38,27 @@
       <button type="submit">Filter</button>
     </form>
 
-    {% if view.chips %}
-      <ul class="chips">
-        {% for chip in view.chips %}
-          <li>
-            <a class="chip" href="{{ chip.query.href(browse_url) }}">
-              {{ chip.tag }}<span aria-hidden="true">&#215;</span
-              ><span class="offscreen"> — remove</span>
-            </a>
-          </li>
-        {% endfor %}
-      </ul>
+    {# The placed chips, then one way out of the whole filter. The chips only
+       cover tags, so a text or Root filter would otherwise leave nothing to
+       unpick — hence a control keyed off the query being non-empty rather than
+       off there being chips. It is a link to the bare Browse URL: clearing a
+       filter *is* the empty URL, so it needs no JavaScript and no new route. #}
+    {% if not view.query.is_empty %}
+      {% if view.chips %}
+        <ul class="chips">
+          {% for chip in view.chips %}
+            <li>
+              <a class="chip" href="{{ chip.query.href(browse_url) }}">
+                {{ chip.tag }}<span aria-hidden="true">&#215;</span
+                ><span class="offscreen"> — remove</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <a class="clear" href="{{ browse_url }}">
+        <span aria-hidden="true">&#215;</span> Clear filters
+      </a>
     {% endif %}
 
     {{ lists.facets(view) }}

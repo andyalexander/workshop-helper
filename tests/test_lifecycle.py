@@ -3,6 +3,8 @@
 import socket
 from pathlib import Path
 
+import pytest
+
 from workshop_helper import lifecycle
 from workshop_helper.discovery import Index
 from workshop_helper.overlay import OVERLAY_FILENAME, Overlay
@@ -32,6 +34,40 @@ def test_port_is_available_true_for_a_free_port() -> None:
     free = sock.getsockname()[1]
     sock.close()
     assert lifecycle.port_is_available(free) is True
+
+
+def test_port_is_available_ignores_a_socket_left_in_time_wait() -> None:
+    """A restart must not report the copy it just stopped as still running.
+
+    Closing the server end of a connection leaves that port in ``TIME_WAIT`` for
+    around a minute. The server binds with ``SO_REUSEADDR`` and would take the
+    port happily, so a probe that refuses it is answering a stricter question
+    than the one asked.
+    """
+    host = lifecycle.DEFAULT_HOST
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind((host, 0))
+    listener.listen()
+    port = listener.getsockname()[1]
+
+    client = socket.create_connection((host, port))
+    served, _ = listener.accept()
+    # Closing the server end *first* is what leaves this port in TIME_WAIT —
+    # exactly what a Ctrl-C on the Host does to every connection it was holding.
+    served.close()
+    client.close()
+    listener.close()
+
+    bare = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        bare.bind((host, port))
+    except OSError:
+        pass  # The state under test: a plain bind is refused.
+    else:
+        bare.close()
+        pytest.skip("platform releases the port immediately; nothing to test")
+
+    assert lifecycle.port_is_available(port) is True
 
 
 def test_busy_port_opens_browser_and_exits_zero_without_serving(

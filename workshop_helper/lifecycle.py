@@ -26,8 +26,18 @@ _BROWSER_DELAY_SECONDS = 0.5
 
 
 def port_is_available(port: int, host: str = DEFAULT_HOST) -> bool:
-    """Return whether ``port`` can be bound on ``host`` right now."""
+    """Return whether ``port`` can be bound on ``host`` right now.
+
+    **The probe must ask on the same terms the server will.** The server binds
+    through Werkzeug, which sets ``SO_REUSEADDR``; a probe without it answers a
+    stricter question and refuses ports the server could have taken. Every
+    connection the Host closes leaves a socket in ``TIME_WAIT`` on this port for
+    a minute or so afterwards, so a bare probe reports "already running" for a
+    minute after every Ctrl-C — turning a restart into a wait, and pointing the
+    browser at a Host that is not there.
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             probe.bind((host, port))
         except OSError:

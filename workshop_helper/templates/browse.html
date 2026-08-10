@@ -3,32 +3,43 @@
 {% block content %}
   <p class="count">{{ sidebar.count }} of {{ sidebar.total }}</p>
   {% if applets %}
-    <ul class="card-grid">
+    {# One row per Applet, on one surface. An Applet is a line of reading — a
+       name, what it is for, and where it came from — so a shelf of fifty stays
+       scannable where a grid of fifty does not. #}
+    <ul class="index">
       {% for applet in applets %}
-        <li class="card">
-          <h2>
-            {# The link carries the filter, which is the whole trick behind "the
-               sidebar persists on the Applet page" (§9) — no session, no state. #}
-            <a href="{{ keep(url_for('applet_page', applet_id=applet.id)) }}">{{ applet.name }}</a>
-          </h2>
-          {% if applet.description %}
-            <p class="description">{{ applet.description }}</p>
-          {% endif %}
-          <p class="provenance">{{ applet.type }} &middot; Root '{{ applet.root.name }}'</p>
-          {% if applet.tags %}
-            <ul class="tags">
-              {% for tag in applet.tags %}
-                <li class="tag {{ 'on' if tag in sidebar.query.tags }}">{{ tag }}</li>
-              {% endfor %}
-            </ul>
-          {% endif %}
+        <li class="row">
+          <div class="row-inner">
+            <div>
+              <h2>
+                {# The link carries the filter, which is the whole trick behind "the
+                   sidebar persists on the Applet page" (§9) — no session, no state.
+                   It is stretched over the row by CSS: the row is the target. #}
+                <a href="{{ keep(url_for('applet_page', applet_id=applet.id)) }}">{{ applet.name }}</a>
+              </h2>
+              {% if applet.description %}
+                <p class="description">{{ applet.description }}</p>
+              {% endif %}
+            </div>
+            <p class="meta">
+              <span class="kicker">{{ applet.type }}</span>
+              <span class="provenance">Root &lsquo;{{ applet.root.name }}&rsquo;</span>
+            </p>
+            {% if applet.tags %}
+              <ul class="tags">
+                {% for tag in applet.tags %}
+                  <li class="tag {{ 'on' if tag in sidebar.query.tags }}">{{ tag }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
         </li>
       {% endfor %}
     </ul>
   {% else %}
     {# The guard rail's other half: facets AND, and ADR-0003 leaves no hierarchy
        to climb, so a dead end has to be recoverable in one click (§9). A greyed
-       card left standing is not a dead end — there is something on screen — so
+       row left standing is not a dead end — there is something on screen — so
        it gets the plain line rather than the way out. #}
     {% if sidebar.recovery %}
       <p class="empty-state">
@@ -47,15 +58,19 @@
       <p class="empty-state">No Applets match.</p>
     {% endif %}
   {% endif %}
-  {# Greyed and un-openable: the blame line titles the card, unlinked, because
+  {# Greyed and un-openable: the blame line titles the row, unlinked, because
      there is nothing to open. The folder name sits under it — it is the id, and
      the one handle left to search by when no name parsed (§10.1). #}
   {% if faults %}
-    <ul class="card-grid faults">
+    <ul class="index faults">
       {% for fault in faults %}
-        <li class="card faulty">
-          {{ error_surface(fault.surface, title_tag="h2") }}
-          <p class="provenance">{{ fault.id }}</p>
+        <li class="row faulty">
+          <div class="row-inner">
+            <div>
+              {{ error_surface(fault.surface, title_tag="h2") }}
+            </div>
+            <p class="meta"><span class="provenance">{{ fault.id }}</span></p>
+          </div>
         </li>
       {% endfor %}
     </ul>

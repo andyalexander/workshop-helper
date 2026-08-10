@@ -348,6 +348,22 @@ def test_a_dead_end_offers_its_recovery_link() -> None:
     assert "copper" in body
 
 
+def test_a_filter_offers_one_way_out_of_all_of_it() -> None:
+    """Chips only cover tags, so the way out is keyed off the whole query (§9)."""
+    client = client_for(_library())
+
+    for filtered in ("/?tag=thread", "/?q=brass", "/?root=own"):
+        body = client.get(filtered).get_data(as_text=True)
+        assert 'class="clear" href="/"' in body, filtered
+
+
+def test_nothing_filtered_offers_nothing_to_clear() -> None:
+    """Never a dead control: with no filter on there is nothing to undo."""
+    body = client_for(_library()).get("/").get_data(as_text=True)
+
+    assert 'class="clear"' not in body
+
+
 def test_the_live_preview_answers_with_the_facet_lists_alone() -> None:
     """htmx swaps this block while you type; the page renders it in place (§9)."""
     body = client_for(_library()).get("/facets?tag=thread&q=imp").get_data(as_text=True)

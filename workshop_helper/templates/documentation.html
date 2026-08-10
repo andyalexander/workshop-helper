@@ -4,7 +4,9 @@
   <article class="applet documentation">
     {# The crumb returns to the *filtered* list, not to a bare Browse (§9). #}
     <p class="crumb"><a href="{{ keep(url_for('browse')) }}">Applets</a> / {{ applet.name }}</p>
-    <h2>{{ applet.name }}</h2>
+    {# Named, because the author's own markup lands in this same article and a
+       bare `h2` would then be two different things (§4.5). #}
+    <h2 class="applet-title">{{ applet.name }}</h2>
     <p class="provenance">Root '{{ applet.root.name }}'{% if applet.author %}, by {{ applet.author }}{% endif %}</p>
     {# Rendered by workshop_utils.render_markdown — the author's own markup. #}
     {{ content | safe }}

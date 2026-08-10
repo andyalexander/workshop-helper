@@ -162,8 +162,8 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
             # redirect is what clears the box and settles the filter into the
             # URL, so `imp↵cop↵` lands two chips with no JavaScript at all.
             return _redirect(query.with_tag(promoted).without_text())
-        # Faults render alongside the cards, never instead of them: a greyed card
-        # is a card (§10.1). `require_applet` cannot reach one, so every route
+        # Faults render alongside the rows, never instead of them: a greyed row
+        # is a row (§10.1). `require_applet` cannot reach one, so every route
         # below is un-openable for a faulty id by construction.
         left = results(index, query)
         return _page("browse.html", applets=left.applets, faults=left.faults)
