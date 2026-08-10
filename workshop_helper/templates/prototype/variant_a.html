@@ -1,0 +1,285 @@
+{# PROTOTYPE — throwaway. Variant A: "Bench".
+
+   The conservative one. Same shape as today — left facet rail, card grid — but
+   restyled: warm paper, a real type scale, brass accent, cards that hold their
+   own edge, and titles that are ink rather than browser blue.
+
+   Self-contained on purpose: no `app.css`, no `base.html`. A variant that
+   inherits the layout it is trying to replace cannot replace it. #}
+{% import "prototype/_switcher.html" as proto %}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Workshop Helper — variant A</title>
+    <style>
+      :root {
+        --paper: #f7f4ee;
+        --card: #fffdf9;
+        --ink: #1b1815;
+        --muted: #6f675c;
+        --rule: #e3dcd0;
+        --brass: #9a5b12;
+        --brass-soft: #f3e6d3;
+      }
+      * { box-sizing: border-box; }
+      body {
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        margin: 0;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: inherit; text-decoration: none; }
+
+      header {
+        align-items: baseline;
+        background: var(--ink);
+        color: #f7f4ee;
+        display: flex;
+        gap: 0.75rem;
+        padding: 0.85rem 1.75rem;
+      }
+      header .wordmark {
+        font-size: 0.95rem;
+        font-weight: 650;
+        letter-spacing: 0.09em;
+        margin: 0;
+        text-transform: uppercase;
+      }
+      header .wordmark b { color: #e0a45c; font-weight: 650; }
+      header .tagline { color: #a49a8c; font-size: 0.8rem; }
+
+      .shell { display: flex; align-items: flex-start; gap: 2.5rem; }
+
+      /* --- rail ------------------------------------------------------- */
+      .sidebar {
+        border-right: 1px solid var(--rule);
+        flex: 0 0 16rem;
+        min-height: 100vh;
+        padding: 1.75rem 1.5rem 3rem 1.75rem;
+        position: sticky;
+        top: 0;
+      }
+      .filter { display: flex; gap: 0.4rem; }
+      .filter input[type="search"] {
+        background: #fff;
+        border: 1px solid var(--rule);
+        border-radius: 7px;
+        font: inherit;
+        font-size: 0.9rem;
+        min-width: 0;
+        padding: 0.45rem 0.65rem;
+        width: 100%;
+      }
+      .filter input:focus-visible {
+        border-color: var(--brass);
+        outline: 2px solid var(--brass-soft);
+      }
+      .filter button {
+        background: var(--ink);
+        border: 0;
+        border-radius: 7px;
+        color: var(--paper);
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.8rem;
+        padding: 0 0.8rem;
+      }
+      .hint { color: var(--muted); font-size: 0.78rem; margin: 0.7rem 0 0; }
+      kbd {
+        background: #fff;
+        border: 1px solid var(--rule);
+        border-bottom-width: 2px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        padding: 0 0.25rem;
+      }
+      .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; list-style: none; margin: 0.75rem 0 0; padding: 0; }
+      .chip {
+        align-items: center;
+        background: var(--brass);
+        border-radius: 999px;
+        color: #fff;
+        display: inline-flex;
+        font-size: 0.75rem;
+        gap: 0.4rem;
+        padding: 0.15rem 0.6rem;
+      }
+      .facet-head {
+        color: var(--muted);
+        font-size: 0.68rem;
+        font-weight: 650;
+        letter-spacing: 0.12em;
+        margin: 1.75rem 0 0.5rem;
+        text-transform: uppercase;
+      }
+      .facets { list-style: none; margin: 0; padding: 0; }
+      .facet {
+        border-radius: 7px;
+        display: flex;
+        font-size: 0.9rem;
+        gap: 0.5rem;
+        justify-content: space-between;
+        padding: 0.28rem 0.5rem;
+      }
+      .facet:hover { background: var(--brass-soft); }
+      .facet.on { background: var(--brass-soft); color: var(--brass); font-weight: 600; }
+      .facet.dead { opacity: 0.5; }
+      .facet .leaves { color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+      .facet.on .leaves { color: var(--brass); }
+      .own {
+        border: 1px solid var(--brass);
+        border-radius: 3px;
+        color: var(--brass);
+        font-size: 0.6rem;
+        letter-spacing: 0.05em;
+        padding: 0 0.2rem;
+        text-transform: uppercase;
+      }
+
+      /* --- cards ------------------------------------------------------ */
+      main { flex: 1; max-width: 66rem; min-width: 0; padding: 2rem 2rem 4rem 0; }
+      .count { color: var(--muted); font-size: 0.8rem; letter-spacing: 0.04em; margin: 0 0 1.1rem; text-transform: uppercase; }
+      .card-grid {
+        display: grid;
+        gap: 1.1rem;
+        grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--rule);
+        border-radius: 12px;
+        box-shadow: 0 1px 2px rgb(27 24 21 / 4%);
+        display: flex;
+        flex-direction: column;
+        padding: 1.15rem 1.25rem 1rem;
+        position: relative;
+        transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
+      }
+      .card:hover {
+        border-color: #d3c6b0;
+        box-shadow: 0 8px 20px rgb(27 24 21 / 8%);
+        transform: translateY(-2px);
+      }
+      .kicker {
+        color: var(--brass);
+        font-size: 0.66rem;
+        font-weight: 700;
+        letter-spacing: 0.13em;
+        margin: 0 0 0.45rem;
+        text-transform: uppercase;
+      }
+      .card h2 { font-size: 1.12rem; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 0.4rem; }
+      /* The whole card is the target; the title just names it. */
+      .card h2 a::after { content: ""; inset: 0; position: absolute; }
+      .card:hover h2 { color: var(--brass); }
+      .description { color: #3d3831; font-size: 0.93rem; margin: 0 0 0.9rem; }
+      .provenance { color: var(--muted); font-size: 0.78rem; margin: auto 0 0; }
+      .tags { display: flex; flex-wrap: wrap; gap: 0.3rem; list-style: none; margin: 0.75rem 0 0; padding: 0; }
+      .tag {
+        border: 1px solid var(--rule);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 0.72rem;
+        padding: 0.05rem 0.55rem;
+      }
+      .tag.on { background: var(--brass-soft); border-color: #dcc39a; color: var(--brass); }
+      .card.faulty { background: #f1eee8; border-style: dashed; color: #6b6b6b; }
+      .empty-state { color: var(--muted); }
+      .empty-state a { color: var(--brass); text-decoration: underline; text-underline-offset: 3px; }
+      .offscreen { clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; width: 1px; }
+
+      @media (max-width: 52rem) {
+        .shell { display: block; }
+        .sidebar { border-bottom: 1px solid var(--rule); border-right: 0; min-height: 0; padding: 1.25rem 1.5rem; position: static; }
+        main { padding: 1.5rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 class="wordmark"><a href="{{ keep(url_for('browse')) }}">Workshop&nbsp;<b>Helper</b></a></h1>
+      <span class="tagline">bench reference</span>
+    </header>
+    <div class="shell">
+      {% set view = sidebar %}
+      {% set browse_url = url_for('browse') %}
+      <aside class="sidebar">
+        <form class="filter" method="get" action="{{ browse_url }}" role="search">
+          {% for tag in view.query.tags %}<input type="hidden" name="{{ tag_param }}" value="{{ tag }}" />{% endfor %}
+          {% if view.query.root %}<input type="hidden" name="{{ root_param }}" value="{{ view.query.root }}" />{% endif %}
+          <input type="hidden" name="variant" value="A" />
+          <label class="offscreen" for="filter-q">Filter by tag</label>
+          <input type="search" id="filter-q" name="{{ text_param }}" value="{{ view.typed }}"
+                 placeholder="Type a tag&hellip;" autocomplete="off" />
+          <button type="submit">Filter</button>
+        </form>
+        <p class="hint">
+          {% if view.top %}<kbd>&#8629;</kbd> <b>{{ view.top.label }}</b>
+            {%- if view.top.selected %} — already on{% elif view.top.dead %} — leaves nothing
+            {%- else %} — {{ view.top.leaves }} left{% endif %}
+          {% elif view.typed %}No tag matches &ldquo;{{ view.typed }}&rdquo; — searching text instead.
+          {% elif view.chips %}<kbd>&#9003;</kbd> removes the last chip.
+          {% else %}Type a tag prefix and press <kbd>&#8629;</kbd>.{% endif %}
+        </p>
+        {% if view.chips %}
+          <ul class="chips">
+            {% for chip in view.chips %}
+              <li><a class="chip" href="{{ proto_href(chip.query, browse_url) }}">{{ chip.tag }}<span aria-hidden="true">&#215;</span></a></li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        <h2 class="facet-head">Tags</h2>
+        {% if view.tags %}
+          <ul class="facets">
+            {% for f in view.tags %}
+              <li><a class="facet {{ 'on' if f.selected }} {{ 'dead' if f.dead }}" href="{{ proto_href(f.query, browse_url) }}">
+                <span>{{ f.label }}{% if f.own %} <span class="own">own</span>{% endif %}</span>
+                <span class="leaves">{%- if f.dead %}nothing{% else %}{{ f.leaves }}{% endif -%}</span>
+              </a></li>
+            {% endfor %}
+          </ul>
+        {% else %}<p class="hint">No tags yet.</p>{% endif %}
+        {% if view.roots %}
+          <h2 class="facet-head">Root</h2>
+          <ul class="facets">
+            {% for f in view.roots %}
+              <li><a class="facet {{ 'on' if f.selected }} {{ 'dead' if f.dead }}" href="{{ proto_href(f.query, browse_url) }}">
+                <span>{{ f.label }}</span>
+                <span class="leaves">{%- if f.dead %}nothing{% else %}{{ f.leaves }}{% endif -%}</span>
+              </a></li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </aside>
+      <main>
+        <p class="count">{{ view.count }} of {{ view.total }}</p>
+        {% if applets %}
+          <ul class="card-grid">
+            {% for applet in applets %}
+              <li class="card">
+                <p class="kicker">{{ applet.type }}</p>
+                <h2><a href="{{ keep(url_for('applet_page', applet_id=applet.id)) }}">{{ applet.name }}</a></h2>
+                {% if applet.description %}<p class="description">{{ applet.description }}</p>{% endif %}
+                <p class="provenance">Root &lsquo;{{ applet.root.name }}&rsquo;</p>
+                {% if applet.tags %}
+                  <ul class="tags">
+                    {% for tag in applet.tags %}<li class="tag {{ 'on' if tag in view.query.tags }}">{{ tag }}</li>{% endfor %}
+                  </ul>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="empty-state">Nothing matches that filter.</p>
+        {% endif %}
+      </main>
+    </div>
+    {{ proto.switcher(current, variants) }}
+  </body>
+</html>

@@ -46,6 +46,7 @@ from flask import (
 )
 from werkzeug.wrappers import Request, Response
 
+from workshop_helper import prototype  # PROTOTYPE — throwaway; delete with it.
 from workshop_helper.browse import (
     ROOT_PARAM,
     TAG_PARAM,
@@ -156,20 +157,34 @@ def create_app(index: Index, overlay: Overlay) -> Flask:
     @app.route("/")
     def browse() -> str | Response:
         query = read_query(request.args)
+        # PROTOTYPE hook (workshop_helper/prototype.py). Off unless
+        # WORKSHOP_HELPER_PROTOTYPE=1; delete with the prototype.
+        variant = prototype.chosen(request.args)
         promoted = promote(query.text, vocabulary(index.applets))
         if promoted is not None:
             # ↵ over a matching prefix places a chip; it does not search. The
             # redirect is what clears the box and settles the filter into the
             # URL, so `imp↵cop↵` lands two chips with no JavaScript at all.
-            return _redirect(query.with_tag(promoted).without_text())
+            return _redirect(query.with_tag(promoted).without_text(), variant)
         # Faults render alongside the cards, never instead of them: a greyed card
         # is a card (§10.1). `require_applet` cannot reach one, so every route
         # below is un-openable for a faulty id by construction.
         left = results(index, query)
+        if variant is not None:
+            extra = prototype.render_args(variant)
+            return _page(
+                extra.pop("template"),  # type: ignore[arg-type]
+                applets=left.applets,
+                faults=left.faults,
+                **extra,
+            )
         return _page("browse.html", applets=left.applets, faults=left.faults)
 
-    def _redirect(query: Query) -> Response:
-        return redirect(query.href(url_for("browse")))
+    def _redirect(query: Query, variant: str | None = None) -> Response:
+        url = query.href(url_for("browse"))
+        if variant is not None:  # PROTOTYPE: keep ↵ inside the variant.
+            url = prototype.stick(url, variant)
+        return redirect(url)
 
     @app.route(f"/{FACETS_PREFIX}")
     def facets() -> str:

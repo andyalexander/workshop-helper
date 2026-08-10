@@ -1,0 +1,65 @@
+{# PROTOTYPE — throwaway. The floating variant switcher (prototype skill §4).
+   Deliberately loud and unlike the page, so it never reads as part of the
+   design being judged. Never rendered unless the prototype hook is on. #}
+{% macro switcher(current, variants) %}
+  <div id="proto-bar" data-current="{{ current }}">
+    <button type="button" data-step="-1" aria-label="Previous variant">&#8592;</button>
+    <span class="proto-label">
+      <b>{{ current }}</b> — {{ variants[current] }}
+    </span>
+    <button type="button" data-step="1" aria-label="Next variant">&#8594;</button>
+  </div>
+  <style>
+    #proto-bar {
+      align-items: center;
+      background: #101014;
+      border-radius: 999px;
+      bottom: 1.25rem;
+      box-shadow: 0 6px 24px rgb(0 0 0 / 35%);
+      color: #fff;
+      display: flex;
+      font: 500 0.8rem/1 ui-sans-serif, system-ui, sans-serif;
+      gap: 0.25rem;
+      left: 50%;
+      padding: 0.3rem 0.35rem;
+      position: fixed;
+      transform: translateX(-50%);
+      z-index: 999;
+    }
+    #proto-bar button {
+      background: #2a2a33;
+      border: 0;
+      border-radius: 999px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.9rem;
+      height: 1.8rem;
+      width: 1.8rem;
+    }
+    #proto-bar button:hover { background: #3d3d4a; }
+    #proto-bar .proto-label { padding: 0 0.6rem; white-space: nowrap; }
+    #proto-bar b { color: #ffcf6b; }
+  </style>
+  <script>
+    (function () {
+      var keys = {{ variants.keys() | list | tojson }};
+      var bar = document.getElementById("proto-bar");
+      function go(step) {
+        var i = keys.indexOf(bar.dataset.current);
+        var next = keys[(i + step + keys.length) % keys.length];
+        var url = new URL(window.location.href);
+        url.searchParams.set("variant", next);
+        window.location.href = url.toString();
+      }
+      bar.querySelectorAll("button").forEach(function (b) {
+        b.addEventListener("click", function () { go(Number(b.dataset.step)); });
+      });
+      document.addEventListener("keydown", function (e) {
+        var t = e.target;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        if (e.key === "ArrowLeft") go(-1);
+        if (e.key === "ArrowRight") go(1);
+      });
+    })();
+  </script>
+{% endmacro %}
