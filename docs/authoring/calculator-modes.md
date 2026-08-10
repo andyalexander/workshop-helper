@@ -155,11 +155,13 @@ def compute(mode: str, inputs: dict, calibration: dict) -> Result:
 
     if mode == "single_bend":
         setback = r_outside * tan(radians(angle) / 2)
-        return Result(outputs={
-            "setback": setback,
-            "r_outside": r_outside,
-            "r_centreline": r_outside - OD[size] / 2,
-        })
+        return Result(
+            outputs={
+                "setback": setback,
+                "r_outside": r_outside,
+                "r_centreline": r_outside - OD[size] / 2,
+            }
+        )
 
     if mode == "step":
         offset = inputs["offset"]
@@ -171,11 +173,13 @@ def compute(mode: str, inputs: dict, calibration: dict) -> Result:
                 f"Offset must be at least {min_step:.0f}mm at {angle}°.",
                 inputs=["offset"],
             )
-        return Result(outputs={
-            "mark_distance": mark_distance,
-            "setback_per_bend": r_outside * tan(radians(angle) / 2),
-            "min_step": min_step,
-        })
+        return Result(
+            outputs={
+                "mark_distance": mark_distance,
+                "setback_per_bend": r_outside * tan(radians(angle) / 2),
+                "min_step": min_step,
+            }
+        )
 ```
 
 Rules the Host enforces around this:
@@ -284,8 +288,7 @@ primary = true
 `compute()` for a single-mode Applet omits the `mode` argument:
 
 ```python
-def compute(inputs: dict) -> Result:
-    ...
+def compute(inputs: dict) -> Result: ...
 ```
 
 ### Your signature is whatever you declared
