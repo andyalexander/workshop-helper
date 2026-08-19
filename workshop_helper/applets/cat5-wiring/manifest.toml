@@ -1,0 +1,6 @@
+[applet]
+type        = "documentation"
+name        = "Cat5 wiring colours"
+description = "RJ45 pin-to-colour order for T568A and T568B, and which one to use."
+author      = "andy"
+tags        = ["electrical", "network", "reference"]
